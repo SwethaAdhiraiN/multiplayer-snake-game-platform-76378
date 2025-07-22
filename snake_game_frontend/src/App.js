@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
-// Color palette
-const COLORS = {
-  primary: "#34a853",   // Green
-  secondary: "#222831", // Very dark gray
-  accent: "#fbbc05",    // Orange
-  bg: "#ffffff",
-  sidebar: "#f8f9fa",
-  grid: "#e9ecef",
-};
+// Component imports
+import Sidebar from "./components/Sidebar";
+import LoginPanel from "./components/LoginPanel";
+import SettingsPanel from "./components/SettingsPanel";
+import Leaderboard from "./components/Leaderboard";
+import MultiplayerLobby from "./components/MultiplayerLobby";
+import MultiplayerGame from "./components/MultiplayerGame";
+import GameBoard from "./components/GameBoard";
 
-// SNAKE GAME CONSTANTS
 const SPEEDS = [
   { label: "Slow", value: 130 },
   { label: "Normal", value: 90 },
@@ -24,249 +22,493 @@ const DIFFICULTY_LEVELS = [
 ];
 const BOARD_SIZE = 20;
 
-// Direction deltas
-const DIRECTIONS = {
-  ArrowUp: { x: 0, y: -1 },
-  ArrowDown: { x: 0, y: 1 },
-  ArrowLeft: { x: -1, y: 0 },
-  ArrowRight: { x: 1, y: 0 },
-};
+function App() {
+  // --- View state for multi-step process ---
+  // one of: "login", "settings", "single", "multiplayer", "gameover"
+  const [page, setPage] = useState("login");
+  const [user, setUser] = useState(null);
 
-// PUBLIC_INTERFACE
-function LoginPanel({ onLogin }) {
-  const [input, setInput] = useState("");
-  return (
-    <form
-      onSubmit={e => {
-        e.preventDefault();
-        if (input.trim()) onLogin(input.trim());
-      }}
-      className="user-login-form"
-    >
-      <input
-        className="input"
-        type="text"
-        placeholder="Name or nickname"
-        maxLength={16}
-        value={input}
-        autoFocus
-        onChange={e => setInput(e.target.value)}
-        style={{ width: "80%", marginBottom: 8 }}
-      />
-      <button className="button accent" type="submit">Enter</button>
-    </form>
-  );
-}
+  // Game settings state
+  const [speedIdx, setSpeedIdx] = useState(1);
+  const [difficultyIdx, setDifficultyIdx] = useState(1);
 
-// PUBLIC_INTERFACE
-function SettingsPanel({ speedIdx, setSpeedIdx, difficultyIdx, setDifficultyIdx, onStart }) {
-  return (
-    <div className="panel-section" style={{ marginTop: 60 }}>
-      <h2 className="panel-title" style={{ textAlign: "center" }}>Game Settings</h2>
-      <label className="panel-label">Speed</label>
-      <div className="btn-group" style={{ justifyContent: "center", marginBottom: 8 }}>
-        {SPEEDS.map((sp, idx) => (
-          <button
-            className={`button ${speedIdx === idx ? 'primary' : ''}`}
-            key={sp.value}
-            onClick={() => setSpeedIdx(idx)}
-          >{sp.label}</button>
-        ))}
-      </div>
-      <label className="panel-label" style={{ marginTop: 5 }}>Difficulty</label>
-      <div className="btn-group" style={{ justifyContent: "center" }}>
-        {DIFFICULTY_LEVELS.map((dl, idx) => (
-          <button
-            className={`button ${difficultyIdx === idx ? 'primary' : ''}`}
-            key={dl.value}
-            onClick={() => setDifficultyIdx(idx)}
-          >{dl.label}</button>
-        ))}
-      </div>
-      <button
-        className="button accent"
-        style={{ width: "100%", marginTop: 18, fontSize: 18 }}
-        onClick={onStart}
-        data-testid="start-game-btn"
-      >Start Game</button>
-    </div>
-  );
-}
+  // Scores/local leaderboard
+  const [maxScore, setMaxScore] = useState(0);
+  const [currentScore, setCurrentScore] = useState(0);
+  const [scores, setScores] = useState([
+    { name: "Alex", score: 182 },
+    { name: "Sandy", score: 170 },
+    { name: "Cleo", score: 161 }
+  ]);
+  // Multiplayer/session
+  const [inSingleGame, setInSingleGame] = useState(false);
+  const [inMultiGame, setInMultiGame] = useState(false);
+  const [lobbyVisible, setLobbyVisible] = useState(false);
+  const [roomId, setRoomId] = useState(null);
 
-// PUBLIC_INTERFACE
-function Leaderboard({ scores, currentUser }) {
-  const sorted = [...scores].sort((a, b) => b.score - a.score).slice(0, 8);
-  return (
-    <div className="panel-section" style={{ marginBottom: 16 }}>
-      <h2 className="panel-title" style={{ fontSize: "1.11rem", textAlign: "left" }}>Leaderboard</h2>
-      <ol className="leaderboard">
-        {sorted.map((entry, idx) => (
-          <li key={idx} className={entry.name === currentUser ? "me" : ""}>
-            <span className="leaderboard-rank">{idx + 1}.</span>
-            <span className="leaderboard-name">{entry.name}</span>
-            <span className="leaderboard-score">{entry.score}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
+  // ---- Transitions/Actions
+  function handleLogin(name) {
+    setUser(name);
+    setPage("settings");
+  }
 
-/**
- * PUBLIC_INTERFACE
- * SnakeGame component for keyboard-movable Snake. 
- * Snake responds to arrow keys and moves at a speed based on the selected setting.
- * @param {Object} props - Includes speed, difficulty, running, callbacks, etc.
- */
-function SnakeGame({ boardSize, speed, difficulty, running, onGameEnd, onScore, playerName }) {
-  const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
-  const [food, setFood] = useState({ x: 12, y: 8 });
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
+  function handleLogout() {
+    setUser(null);
+    setPage("login");
+    setInSingleGame(false);
+    setInMultiGame(false);
+    setRoomId(null);
+    setLobbyVisible(false);
+  }
 
-  // Direction and move timer stored in refs for responsive behavior
-  const directionRef = useRef("ArrowRight"); // latest direction, never stale
-  const nextDirectionRef = useRef("ArrowRight"); // handle rapid key presses in a single tick
-  const moveInterval = useRef(null);
+  // Single player
+  function handleStartSingle() {
+    setCurrentScore(0);
+    setInSingleGame(true);
+    setPage("single");
+  }
+  function handleGameEnd(finalScore) {
+    setInSingleGame(false);
+    setCurrentScore(finalScore);
+    setPage("gameover");
+  }
+  // Multi player
+  function handleLobby() {
+    setLobbyVisible(true);
+    setPage("multiplayer");
+  }
+  function handleJoinRoom(room) {
+    setRoomId(room);
+    setLobbyVisible(false);
+    setInMultiGame(true);
+    setPage("multiplayer");
+  }
+  function handleCreateRoom(newRoomName) {
+    setRoomId("demo-" + newRoomName);
+    setLobbyVisible(false);
+    setInMultiGame(true);
+    setPage("multiplayer");
+  }
+  function handleEndMultiGame() {
+    setInMultiGame(false);
+    setRoomId(null);
+    setPage("settings");
+  }
+  function handleReplay() {
+    setPage("settings");
+  }
 
-  // Reset state between games
+  // Update best score & leaderboard after each single game end
   useEffect(() => {
-    // Reset everything when not running
-    if (!running) {
-      clearInterval(moveInterval.current);
-      return;
-    }
-    setSnake([{ x: 8, y: 8 }]);
-    setFood(randomCell(boardSize));
-    setScore(0);
-    setGameOver(false);
-
-    directionRef.current = "ArrowRight";
-    nextDirectionRef.current = "ArrowRight";
-  }, [running, boardSize]);
-
-  // Handle keydown events
-  useEffect(() => {
-    if (!running) return;
-
-    const handleKey = e => {
-      if (DIRECTIONS[e.key] && !isOpposite(directionRef.current, e.key)) {
-        // prevent reverse-move, save nextDirection for next move tick
-        nextDirectionRef.current = e.key;
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [running]);
-
-  // Core movement/game loop: re-create interval whenever speed or running changes (or game starts)
-  useEffect(() => {
-    if (!running) {
-      clearInterval(moveInterval.current);
-      return;
-    }
-    clearInterval(moveInterval.current);
-
-    moveInterval.current = setInterval(() => {
-      // On each tick: update direction, move snake
-      directionRef.current = nextDirectionRef.current;
-      setSnake(prevSnake =>
-        getNextSnake(
-          prevSnake,
-          directionRef.current,
-          food,
-          boardSize,
-          difficulty,
-          (cell) => setFood(cell),
-          (sc) => setScore(sc => sc + 10),
-          (v) => setGameOver(v)
-        )
-      );
-    }, speed);
-
-    return () => clearInterval(moveInterval.current);
-  }, [speed, running, boardSize, difficulty, food]); // food as dep to refresh after score
-
-  // End game and notify parent
-  useEffect(() => {
-    if (gameOver && running) {
-      setTimeout(() => onGameEnd(score), 350);
-      onScore(score);
+    if (currentScore > maxScore) setMaxScore(currentScore);
+    if (currentScore > 0 && user) {
+      setScores(scores => {
+        const idx = scores.findIndex(s => s.name === user);
+        if (idx < 0) return scores.concat([{ name: user, score: currentScore }]);
+        if (scores[idx].score >= currentScore) return scores;
+        const next = [...scores];
+        next[idx] = { name: user, score: currentScore };
+        return next;
+      });
     }
     // eslint-disable-next-line
-  }, [gameOver]);
+  }, [currentScore]);
 
-  // Draw the game board grid/cells
-  return (
-    <div className="game-board-container">
-      <div
-        className={`game-board${gameOver ? " game-over" : ""}`}
-        tabIndex={0}
-        style={{
-          gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
-          gridTemplateRows: `repeat(${boardSize}, 1fr)`
-        }}
+  // ========= VIEWS ==========
+  function SettingsView() {
+    return (
+      <Sidebar
+        user={user}
+        onLogout={handleLogout}
+        settingsPanel={
+          <SettingsPanel
+            speedIdx={speedIdx}
+            setSpeedIdx={setSpeedIdx}
+            difficultyIdx={difficultyIdx}
+            setDifficultyIdx={setDifficultyIdx}
+            onStart={handleStartSingle}
+          />
+        }
+        leaderboardPanel={<Leaderboard scores={scores} currentUser={user} />}
+        multiplayerPanel={
+          <>
+            <div className="panel-section" style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 10,
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <button
+                  className="button accent"
+                  onClick={handleLobby}
+                  style={{ fontSize: 16, padding: "8px 20px", width: "96%" }}
+                  type="button"
+                >
+                  Multiplayer
+                </button>
+              </div>
+            </div>
+          </>
+        }
       >
-        {[...Array(boardSize * boardSize).keys()].map(i => {
-          const x = i % boardSize, y = Math.floor(i / boardSize);
-          const snakePart = snake.find(seg => seg.x === x && seg.y === y);
-          const foodHere = food.x === x && food.y === y;
-          let color = "";
-          if (snakePart) color = COLORS.primary;
-          if (foodHere) color = COLORS.accent;
-          return (
-            <div
-              key={i}
-              className="cell"
-              style={{
-                background: color
-                  ? color
-                  : ((x + y) % 2 === 0 ? COLORS.bg : COLORS.grid)
-              }}
-            />
-          );
-        })}
-        {gameOver && (
-          <div className="game-over-overlay">
-            <div>Game Over</div>
-            <div className="score-popup">Score: {score}</div>
+        <div style={{ flex: 1 }}>
+          <div className="main" style={{ justifyContent: "center" }}>
+            <h1 className="game-title" style={{ margin: "1.5rem 0" }}>
+              <span style={{ color: "#34a853" }}>Snake</span>
+              <span style={{ color: "#fbbc05", marginLeft: 10 }}>Game</span>
+            </h1>
+            <div style={{ color: "#222831", fontSize: 18, marginBottom: 18 }}>
+              Hello, <span style={{ color: "#34a853", fontWeight: 700 }}>{user}</span>
+            </div>
+            <div className="panel-section" style={{ margin: "0 auto", maxWidth: 370 }}>
+              <div style={{ textAlign: "center", fontWeight: 400, color: "#888" }}>
+                Select your game settings and play solo, or join a multiplayer lobby!
+              </div>
+            </div>
+            <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
+              <span style={{ color: "#888" }}>Choose your settings and play!</span>
+            </footer>
           </div>
-        )}
+        </div>
+      </Sidebar>
+    );
+  }
+
+  function LoginView() {
+    return (
+      <div className="app-wrapper">
+        <Sidebar user={null}>
+          <main className="main" style={{ justifyContent: "center" }}>
+            <div style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}>
+              <div className="panel-section" style={{ margin: "0 auto", marginTop: 80 }}>
+                <h1
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "2.1rem",
+                    color: "#34a853",
+                    letterSpacing: ".13em",
+                    textAlign: "center"
+                  }}
+                >
+                  Snake Game
+                </h1>
+                <div style={{ color: "#222831", marginBottom: 16, textAlign: "center" }}>
+                  Play a classic game of Snake! Compete for top score. Enter your nickname to begin.
+                </div>
+                <LoginPanel onLogin={handleLogin} />
+              </div>
+              <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
+                <span style={{ color: "#888" }}>© 2024 Multiplayer Snake</span>
+              </footer>
+            </div>
+          </main>
+        </Sidebar>
       </div>
-      <div style={{ marginTop: 18, fontWeight: 500, color: COLORS.secondary }}>
-        <span style={{ color: COLORS.accent }}>Score:</span> {score}
+    );
+  }
+
+  function SingleGameView() {
+    const [inGame, setInGame] = useState(true);
+    const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
+    const [food, setFood] = useState({ x: 12, y: 8 });
+    const [score, setScore] = useState(0);
+    const [gameOver, setGameOver] = useState(false);
+
+    const directionRef = useRef("ArrowRight");
+    const nextDirectionRef = useRef("ArrowRight");
+    const moveInterval = useRef(null);
+
+    useEffect(() => {
+      if (!inGame) {
+        clearInterval(moveInterval.current);
+        return;
+      }
+      setSnake([{ x: 8, y: 8 }]);
+      setFood(randomCell(BOARD_SIZE));
+      setScore(0);
+      setGameOver(false);
+
+      directionRef.current = "ArrowRight";
+      nextDirectionRef.current = "ArrowRight";
+    }, [inGame]);
+
+    useEffect(() => {
+      if (!inGame) return;
+      const handleKey = e => {
+        if (
+          ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) &&
+          !isOpposite(directionRef.current, e.key)
+        ) {
+          nextDirectionRef.current = e.key;
+        }
+      };
+      window.addEventListener("keydown", handleKey);
+      return () => window.removeEventListener("keydown", handleKey);
+    }, [inGame]);
+
+    useEffect(() => {
+      if (!inGame) {
+        clearInterval(moveInterval.current);
+        return;
+      }
+      clearInterval(moveInterval.current);
+
+      moveInterval.current = setInterval(() => {
+        directionRef.current = nextDirectionRef.current;
+        setSnake(prevSnake =>
+          getNextSnake(
+            prevSnake,
+            directionRef.current,
+            food,
+            BOARD_SIZE,
+            DIFFICULTY_LEVELS[difficultyIdx].value,
+            cell => setFood(cell),
+            sc => setScore(sc => sc + 10),
+            v => setGameOver(v)
+          )
+        );
+      }, SPEEDS[speedIdx].value);
+
+      return () => clearInterval(moveInterval.current);
+    }, [speedIdx, inGame, food, difficultyIdx]);
+
+    useEffect(() => {
+      if (gameOver && inGame) {
+        setTimeout(() => {
+          setInGame(false);
+          handleGameEnd(score);
+        }, 350);
+      }
+      // eslint-disable-next-line
+    }, [gameOver]);
+
+    function renderCell(x, y, key) {
+      const snakePart = snake.find(seg => seg.x === x && seg.y === y);
+      const foodHere = food.x === x && food.y === y;
+      let color = "";
+      if (snakePart) color = "#34a853";
+      if (foodHere) color = "#fbbc05";
+      return (
+        <div
+          key={key}
+          className="cell"
+          style={{
+            background: color
+              ? color
+              : (x + y) % 2 === 0
+              ? "#fff"
+              : "#e9ecef"
+          }}
+        ></div>
+      );
+    }
+
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          settingsPanel={<></>}
+          leaderboardPanel={<Leaderboard scores={scores} currentUser={user} />}
+        >
+          <main className="main">
+            <h1 className="game-title">
+              <span style={{ color: "#34a853" }}>Snake</span>
+              <span style={{ color: "#fbbc05", marginLeft: 10 }}>Game</span>
+            </h1>
+            <div className="game-canvas-box">
+              <GameBoard
+                boardSize={BOARD_SIZE}
+                renderCell={renderCell}
+                overlay={
+                  gameOver && (
+                    <div className="game-over-overlay">
+                      <div>Game Over</div>
+                      <div className="score-popup">Score: {score}</div>
+                    </div>
+                  )
+                }
+                tabIndex={0}
+              />
+              <div className="scoreboard-box">
+                <div style={{ fontWeight: 400, color: "#222831", marginTop: 12 }}>
+                  <span style={{ color: "#fbbc05" }}>Your Max Score:</span>{" "}
+                  <span style={{ color: "#34a853", fontWeight: 600, fontSize: "1.2rem" }}>{maxScore}</span>
+                </div>
+              </div>
+            </div>
+            <footer className="footer">
+              <span style={{ color: "#888" }}>Use arrow keys. Good luck, {user}!</span>
+            </footer>
+          </main>
+        </Sidebar>
       </div>
-    </div>
+    );
+  }
+
+  function MultiPlayerView() {
+    if (lobbyVisible || !inMultiGame) {
+      return (
+        <div className="app-wrapper">
+          <Sidebar
+            user={user}
+            onLogout={handleLogout}
+            settingsPanel={<></>}
+            leaderboardPanel={<Leaderboard scores={scores} currentUser={user} />}
+          >
+            <main className="main" style={{ maxWidth: 640 }}>
+              <MultiplayerLobby
+                user={user}
+                onJoin={handleJoinRoom}
+                onCreateRoom={handleCreateRoom}
+              />
+              <button
+                className="button minimal"
+                onClick={() => setPage("settings")}
+                style={{ marginTop: 10 }}
+                type="button"
+              >
+                Back to Settings
+              </button>
+            </main>
+          </Sidebar>
+        </div>
+      );
+    }
+
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          settingsPanel={<></>}
+          leaderboardPanel={<Leaderboard scores={scores} currentUser={user} />}
+        >
+          <main className="main">
+            <h2 className="game-title">
+              Multiplayer Room: <span style={{ color: "#fbbc05" }}>{roomId}</span>
+            </h2>
+            <MultiplayerGame
+              playerName={user}
+              opponentName={"Opponent"}
+              onEnd={handleEndMultiGame}
+            />
+            <button
+              className="button minimal"
+              onClick={() => {
+                setInMultiGame(false);
+                setRoomId(null);
+                setLobbyVisible(true);
+                setPage("multiplayer");
+              }}
+              type="button"
+              style={{ marginTop: 10 }}
+            >
+              Back to Lobby
+            </button>
+          </main>
+        </Sidebar>
+      </div>
+    );
+  }
+
+  function GameOverView() {
+    const leaderboardEntry = scores.find(s => s.name === user);
+    const bestScore = leaderboardEntry ? leaderboardEntry.score : maxScore;
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          settingsPanel={<></>}
+          leaderboardPanel={<Leaderboard scores={scores} currentUser={user} />}
+        >
+          <main className="main" style={{ justifyContent: "center" }}>
+            <div style={{ width: "100%", maxWidth: 420, alignSelf: "center" }}>
+              <div className="panel-section" style={{ margin: "0 auto", marginTop: 70 }}>
+                <h2
+                  className="panel-title"
+                  style={{
+                    textAlign: "center",
+                    fontSize: "1.7rem",
+                    color: "#34a853",
+                    marginBottom: 10
+                  }}
+                >
+                  Game Over
+                </h2>
+                <div style={{ textAlign: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 18, color: "#222831" }}>Score:</span>{" "}
+                  <span style={{ fontWeight: 600, fontSize: 24, color: "#fbbc05" }}>{currentScore}</span>
+                </div>
+                <div style={{ textAlign: "center", marginBottom: 6 }}>
+                  <span style={{ color: "#34a853", fontWeight: 500 }}>Best Score:</span>{" "}
+                  <span style={{ fontWeight: 700, fontSize: 20, color: "#34a853" }}>{bestScore}</span>
+                </div>
+                <button
+                  className="button accent"
+                  style={{ width: "100%", margin: "16px 0" }}
+                  onClick={handleReplay}
+                  type="button"
+                >
+                  Play Again
+                </button>
+                <div style={{ marginTop: 10, marginBottom: 5 }}>
+                  <Leaderboard scores={scores} currentUser={user} />
+                </div>
+              </div>
+              <footer className="footer" style={{ marginTop: 12, textAlign: "center" }}>
+                <span style={{ color: "#888" }}>See if you made the top scores, {user}!</span>
+              </footer>
+            </div>
+          </main>
+        </Sidebar>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {page === "login" && <LoginView />}
+      {page === "settings" && <SettingsView />}
+      {page === "single" && <SingleGameView />}
+      {page === "multiplayer" && <MultiPlayerView />}
+      {page === "gameover" && <GameOverView />}
+    </>
   );
 }
 
-// Helpers for Snake game logic
+// Helpers (from original SnakeGame)
 function getNextSnake(snake, dir, food, size, difficulty, setFood, setScore, setGameOver) {
   if (!dir) return snake;
+  const DIRECTIONS = {
+    ArrowUp: { x: 0, y: -1 },
+    ArrowDown: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 }
+  };
   const d = DIRECTIONS[dir];
   const head = { x: snake[0].x + d.x, y: snake[0].y + d.y };
-
-  // Border collision
   if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size) {
     setGameOver(true);
     return snake;
   }
-  // Self collision
   if (snake.some(s => s.x === head.x && s.y === head.y)) {
     setGameOver(true);
     return snake;
   }
-  // Eat food
   let grow = false;
   if (head.x === food.x && head.y === food.y) {
     grow = true;
     setFood(randomCell(size, snake.concat([head])));
     setScore(s => s + 10);
   }
-
   const nextSnake = [head, ...snake];
   if (!grow) nextSnake.pop();
-  // Hardcore: Remove food after N ticks (not implemented here)
   return nextSnake;
 }
 function isOpposite(dir, next) {
@@ -281,210 +523,6 @@ function randomCell(size, exclude = []) {
     if (!exclude.some(c => c.x === cell.x && c.y === cell.y)) return cell;
     if (++tries > 1000) return { x: 0, y: 0 }; // fallback
   }
-}
-
-//////////////////////////////////////////////
-// MAIN APP - Multi-step flow logic and render
-//////////////////////////////////////////////
-function App() {
-  // --- View state for multi-step process ---
-  // one of: "login", "settings", "game", "gameover"
-  const [page, setPage] = useState("login");
-
-  // User state
-  const [user, setUser] = useState(null);
-
-  // Game settings state
-  const [speedIdx, setSpeedIdx] = useState(1);
-  const [difficultyIdx, setDifficultyIdx] = useState(1);
-
-  // Score/leaderboard state
-  const [maxScore, setMaxScore] = useState(0);
-  const [currentScore, setCurrentScore] = useState(0);
-
-  // Leaderboard (with dummy data, update after play)
-  const [scores, setScores] = useState([
-    { name: "Alex", score: 182 },
-    { name: "Sandy", score: 170 },
-    { name: "Cleo", score: 161 }
-  ]);
-
-  // Game activity state
-  const [inGame, setInGame] = useState(false);
-
-  // ---- Transitions ----
-  // [1] Login page onLogin → save user, go to settings
-  function handleLogin(name) {
-    setUser(name);
-    setPage("settings");
-  }
-
-  // [2] Settings: start game
-  function handleStartGame() {
-    setCurrentScore(0);
-    setInGame(true);
-    setPage("game");
-  }
-
-  // [3] In-game: handle end by score, show game over
-  function handleGameEnd(finalScore) {
-    setInGame(false);
-    setCurrentScore(finalScore);
-    setPage("gameover");
-  }
-
-  // [4] Game over: Play Again returns to settings
-  function handleReplay() {
-    setPage("settings");
-  }
-
-  // Update best score & leaderboard after each game end
-  useEffect(() => {
-    // On new personal best, update max
-    if (currentScore > maxScore) setMaxScore(currentScore);
-
-    // Update leaderboard if user achieves new best, else add first
-    if (currentScore > 0 && user) {
-      setScores(scores => {
-        const idx = scores.findIndex(s => s.name === user);
-        if (idx < 0) return scores.concat([{ name: user, score: currentScore }]);
-        if (scores[idx].score >= currentScore) return scores;
-        const next = [...scores];
-        next[idx] = { name: user, score: currentScore };
-        return next;
-      });
-    }
-    // eslint-disable-next-line
-  }, [currentScore]);
-
-  // ========= Views for each step ==========
-  function LoginView() {
-    return (
-      <div className="main" style={{ justifyContent: "center" }}>
-        <div style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}>
-          <div className="panel-section" style={{ margin: "0 auto", marginTop: 80 }}>
-            <h1 style={{
-              fontWeight: 800,
-              fontSize: "2.1rem",
-              color: COLORS.primary,
-              letterSpacing: ".13em",
-              textAlign: "center"
-            }}>Snake Game</h1>
-            <div style={{ color: COLORS.secondary, marginBottom: 16, textAlign: "center" }}>
-              Play a classic game of Snake! Compete for top score. Enter your nickname to begin.
-            </div>
-            <LoginPanel onLogin={handleLogin} />
-          </div>
-          <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
-            <span style={{ color: COLORS.secondary }}>© 2024 Multiplayer Snake</span>
-          </footer>
-        </div>
-      </div>
-    );
-  }
-
-  function SettingsView() {
-    return (
-      <div className="main" style={{ justifyContent: "center" }}>
-        <div style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}>
-          <div className="panel-section" style={{ margin: "0 auto", marginTop: 80 }}>
-            <div style={{ color: COLORS.secondary, textAlign: "center", fontSize: 15, marginBottom: 5 }}>
-              Hello, <span style={{ color: COLORS.primary, fontWeight: 700 }}>{user}</span>
-            </div>
-            <SettingsPanel
-              speedIdx={speedIdx}
-              setSpeedIdx={setSpeedIdx}
-              difficultyIdx={difficultyIdx}
-              setDifficultyIdx={setDifficultyIdx}
-              onStart={handleStartGame}
-            />
-          </div>
-          <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
-            <span style={{ color: COLORS.secondary }}>Choose your settings and play!</span>
-          </footer>
-        </div>
-      </div>
-    );
-  }
-
-  function GameView() {
-    return (
-      <div className="main">
-        <h1 className="game-title">
-          <span style={{ color: COLORS.primary }}>Snake</span>
-          <span style={{ color: COLORS.accent, marginLeft: 10 }}>Game</span>
-        </h1>
-        <div className="game-canvas-box">
-          <SnakeGame
-            boardSize={BOARD_SIZE}
-            speed={SPEEDS[speedIdx].value}
-            difficulty={DIFFICULTY_LEVELS[difficultyIdx].value}
-            running={inGame}
-            onGameEnd={handleGameEnd}
-            onScore={() => {}}
-            playerName={user}
-          />
-          <div className="scoreboard-box">
-            <div style={{ fontWeight: 400, color: COLORS.secondary, marginTop: 12 }}>
-              <span style={{ color: COLORS.accent }}>Your Max Score:</span>{" "}
-              <span style={{ color: COLORS.primary, fontWeight: 600, fontSize: "1.2rem" }}>{maxScore}</span>
-            </div>
-          </div>
-        </div>
-        <footer className="footer">
-          <span style={{ color: COLORS.secondary }}>Use arrow keys. Good luck, {user}!</span>
-        </footer>
-      </div>
-    );
-  }
-
-  function GameOverView() {
-    // Best score for this user
-    const leaderboardEntry = scores.find(s => s.name === user);
-    const bestScore = leaderboardEntry ? leaderboardEntry.score : maxScore;
-    return (
-      <div className="main" style={{ justifyContent: "center" }}>
-        <div style={{ width: "100%", maxWidth: 420, alignSelf: "center" }}>
-          <div className="panel-section" style={{ margin: "0 auto", marginTop: 70 }}>
-            <h2 className="panel-title" style={{
-              textAlign: "center",
-              fontSize: "1.7rem",
-              color: COLORS.primary,
-              marginBottom: 10
-            }}>Game Over</h2>
-            <div style={{ textAlign: "center", marginBottom: 12 }}>
-              <span style={{ fontSize: 18, color: COLORS.secondary }}>Score:</span>{" "}
-              <span style={{ fontWeight: 600, fontSize: 24, color: COLORS.accent }}>{currentScore}</span>
-            </div>
-            <div style={{ textAlign: "center", marginBottom: 6 }}>
-              <span style={{ color: COLORS.primary, fontWeight: 500 }}>Best Score:</span>{" "}
-              <span style={{ fontWeight: 700, fontSize: 20, color: COLORS.primary }}>{bestScore}</span>
-            </div>
-            <button className="button accent" style={{ width: "100%", margin: "16px 0" }}
-              onClick={handleReplay}
-            >Play Again</button>
-            <div style={{ marginTop: 10, marginBottom: 5 }}>
-              <Leaderboard scores={scores} currentUser={user} />
-            </div>
-          </div>
-          <footer className="footer" style={{ marginTop: 12, textAlign: "center" }}>
-            <span style={{ color: COLORS.secondary }}>See if you made the top scores, {user}!</span>
-          </footer>
-        </div>
-      </div>
-    );
-  }
-
-  // MAIN RENDER
-  // Only one primary screen shown at a time
-  return (
-    <>
-      {page === "login" && <LoginView />}
-      {page === "settings" && <SettingsView />}
-      {page === "game" && <GameView />}
-      {page === "gameover" && <GameOverView />}
-    </>
-  );
 }
 
 export default App;
