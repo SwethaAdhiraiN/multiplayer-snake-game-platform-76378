@@ -112,52 +112,80 @@ function Leaderboard({ scores, currentUser }) {
   );
 }
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * SnakeGame component for keyboard-movable Snake. 
+ * Snake responds to arrow keys and moves at a speed based on the selected setting.
+ * @param {Object} props - Includes speed, difficulty, running, callbacks, etc.
+ */
 function SnakeGame({ boardSize, speed, difficulty, running, onGameEnd, onScore, playerName }) {
   const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
-  const [direction, setDirection] = useState("ArrowRight");
   const [food, setFood] = useState({ x: 12, y: 8 });
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+
+  // Direction and move timer stored in refs for responsive behavior
+  const directionRef = useRef("ArrowRight"); // latest direction, never stale
+  const nextDirectionRef = useRef("ArrowRight"); // handle rapid key presses in a single tick
   const moveInterval = useRef(null);
 
-  // Reset when (re)starting game
+  // Reset state between games
   useEffect(() => {
+    // Reset everything when not running
     if (!running) {
       clearInterval(moveInterval.current);
       return;
     }
     setSnake([{ x: 8, y: 8 }]);
-    setDirection("ArrowRight");
     setFood(randomCell(boardSize));
     setScore(0);
     setGameOver(false);
 
-    // Movement Loop
-    moveInterval.current = setInterval(() => {
-      setSnake(prev => getNextSnake(prev, direction, food, boardSize, difficulty, setFood, setScore, setGameOver));
-    }, speed);
+    directionRef.current = "ArrowRight";
+    nextDirectionRef.current = "ArrowRight";
+  }, [running, boardSize]);
 
-    // Keyboard events
+  // Handle keydown events
+  useEffect(() => {
+    if (!running) return;
+
     const handleKey = e => {
-      if (DIRECTIONS[e.key] && !isOpposite(direction, e.key)) {
-        setDirection(e.key);
+      if (DIRECTIONS[e.key] && !isOpposite(directionRef.current, e.key)) {
+        // prevent reverse-move, save nextDirection for next move tick
+        nextDirectionRef.current = e.key;
       }
     };
     window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [running]);
 
-    return () => {
-      clearInterval(moveInterval.current);
-      window.removeEventListener("keydown", handleKey);
-    };
-    // eslint-disable-next-line
-  }, [running, speed, difficulty]);
-
-  // On food/snake/direction update, also update for food/growth (so food position is fresh)
+  // Core movement/game loop: re-create interval whenever speed or running changes (or game starts)
   useEffect(() => {
-    // This keeps the food position correct on direction change (minor, but prevents food bugs)
-    // eslint-disable-next-line
-  }, [food, direction]);
+    if (!running) {
+      clearInterval(moveInterval.current);
+      return;
+    }
+    clearInterval(moveInterval.current);
+
+    moveInterval.current = setInterval(() => {
+      // On each tick: update direction, move snake
+      directionRef.current = nextDirectionRef.current;
+      setSnake(prevSnake =>
+        getNextSnake(
+          prevSnake,
+          directionRef.current,
+          food,
+          boardSize,
+          difficulty,
+          (cell) => setFood(cell),
+          (sc) => setScore(sc => sc + 10),
+          (v) => setGameOver(v)
+        )
+      );
+    }, speed);
+
+    return () => clearInterval(moveInterval.current);
+  }, [speed, running, boardSize, difficulty, food]); // food as dep to refresh after score
 
   // End game and notify parent
   useEffect(() => {
