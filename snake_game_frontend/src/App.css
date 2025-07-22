@@ -16,6 +16,112 @@ body, html {
   color: var(--color-text);
 }
 
+/* Gameflow page backgrounds for each full-screen page-step */
+.gameflow-bg {
+  background: linear-gradient(120deg, #e6ffed 0%, #fffbe7 100%);
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  animation: fade-in .2s;
+  box-sizing: border-box;
+}
+.gameflow-panel {
+  background: #fff;
+  border-radius: 26px;
+  box-shadow: 0 4px 24px 0 #c1dcc445;
+  padding: 2.6rem 2.4rem 2.1rem 2.4rem;
+  margin: 2vh 0 2vh 0;
+  max-width: 470px;
+  width: 97vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fade-in .25s;
+  gap: 0.35rem;
+}
+@media (max-width: 650px) {
+  .gameflow-panel { padding: 1.4rem 4vw 1.2rem 4vw;}
+}
+.gameflow-title {
+  font-size: 2.45rem;
+  color: var(--color-primary);
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-align: center;
+  margin-bottom: 0.35em;
+  text-shadow: 1px 2px 1px #b8eec338;
+}
+.gameflow-desc {
+  font-size: 1.13rem;
+  color: var(--color-text-dim);
+  text-align: center;
+  margin-bottom: 1.2em;
+}
+.gameflow-panel.difficulty {
+  min-width: 290px;
+}
+.gameflow-panel.game {
+  background: linear-gradient(100deg, #f4fff4 15%, #f8fafb 100%);
+}
+.gameflow-panel.gameover {
+  background: linear-gradient(112deg,#fff7ee 22%, #f5fffc 100%);
+}
+.gameflow-panel.login {
+  background: linear-gradient(98deg,#e6ffed 20%, #f5fbf3 100%);
+}
+.gameflow-btn {
+  min-width: 84px;
+  padding: 9px 0 !important;
+  font-size: 1.1rem;
+  margin-right: 0.4em;
+  margin-bottom: 3px;
+  border-radius: 9px;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 1px 5px 0 #d3e6d586;
+}
+.gameflow-btn.selected {
+  outline: 2.5px solid #abd1c6;
+  background: var(--color-primary);
+  color: #fff;
+}
+.gameflow-continue-btn {
+  min-height: 46px;
+  font-size: 1.21rem !important;
+  border-radius: 14px;
+  box-shadow: 0 3.5px 24px 0 #99d4a435;
+  font-weight: 900 !important;
+  margin-bottom: 0.2em;
+  margin-top: 1.15em;
+  letter-spacing: .03em;
+}
+.game-session-meta {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 1.4em;
+  align-items: center;
+  justify-content: space-around;
+  font-size: 1.02rem;
+  margin: 0 0 10px 0;
+  color: #444;
+}
+@media (max-width: 600px) {
+  .game-session-meta { flex-direction: column; gap: 7px;}
+}
+.gameflow-footer {
+  text-align: center;
+  width: 100%;
+  color: #adb5bd;
+  margin-top: .9rem;
+  font-size: .95em;
+  font-weight: 500;
+  opacity: .84;
+}
+
 /* Layout */
 .app-wrapper {
   display: flex;
