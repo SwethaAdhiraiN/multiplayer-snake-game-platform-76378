@@ -349,125 +349,225 @@ function App() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // App States
+  // --- State for multi-page flow ---
+  // PAGE: One of: "login" | "settings" | "game" | "gameover"
+  const [page, setPage] = useState("login");
+
+  // User basic state
   const [user, setUser] = useState(null);
+
+  // Settings state
+  const [speedIdx, setSpeedIdx] = useState(1); // Normal
+  const [difficultyIdx, setDifficultyIdx] = useState(1); // Classic
+
+  // Score/leaderboard state
   const [maxScore, setMaxScore] = useState(0);
   const [currentScore, setCurrentScore] = useState(0);
   const [scores, setScores] = useState(DUMMY_LEADERBOARD);
-  const [speedIdx, setSpeedIdx] = useState(1); // Normal
-  const [difficultyIdx, setDifficultyIdx] = useState(1); // Classic
+
+  // Multiplayer stub state
   const [gameMode, setGameMode] = useState("single"); // or "multi"
-  const [inGame, setInGame] = useState(false);
   const [showLobby, setShowLobby] = useState(false);
+  const [inGame, setInGame] = useState(false); // Needed to drive SnakeGame
   const [lobbyUsers, setLobbyUsers] = useState([
-    {name: "Alex", emoji: "😎"},{name: "Sandy", emoji: "🙂"}
+    { name: "Alex", emoji: "😎" }, { name: "Sandy", emoji: "🙂" }
   ]);
 
-  // Score effect/tracking
-  useEffect(()=>{
+  // ---- PAGE TRANSITIONS ----
+  // Login success
+  function handleLogin(name) {
+    setUser(name);
+    setPage("settings");
+  }
+
+  // Start game from settings
+  function handleStartFromSettings() {
+    setCurrentScore(0);
+    setInGame(true);
+    setPage("game");
+  }
+
+  // End game (SnakeGame -> Game Over page)
+  function handleGameEnd(score) {
+    setInGame(false);
+    setCurrentScore(score);
+    setPage("gameover");
+  }
+
+  // Replay (Game Over -> Settings)
+  function handleReplay() {
+    setPage("settings");
+  }
+
+  // Update scores/best/leaderboard after each game
+  useEffect(() => {
     // On new high, update max
-    if(currentScore > maxScore) setMaxScore(currentScore);
+    if (currentScore > maxScore) setMaxScore(currentScore);
     // Update global leaderboard if needed
-    if(currentScore>0 && user){
-      setScores(scores=>{
-        // Only update if beaten old score
-        const idx = scores.findIndex(s=>s.name===user);
-        if(idx<0) return scores.concat([{name:user, score:currentScore}]);
-        if(scores[idx].score >= currentScore) return scores;
+    if (currentScore > 0 && user) {
+      setScores(scores => {
+        const idx = scores.findIndex(s => s.name === user);
+        if (idx < 0) return scores.concat([{ name: user, score: currentScore }]);
+        if (scores[idx].score >= currentScore) return scores;
         const next = [...scores];
-        next[idx] = {name:user, score:currentScore};
+        next[idx] = { name: user, score: currentScore };
         return next;
       });
     }
     // eslint-disable-next-line
-  },[currentScore]);
+  }, [currentScore]);
 
-  // PUBLIC_INTERFACE
-  function handleStartSingle(){
-    setInGame(true); setShowLobby(false); setCurrentScore(0);
-  }
-  function handleGameEnd(score){
-    setInGame(false);
-    setCurrentScore(score);
-  }
-  function handleMultiplayerStart(){
-    setInGame(true);
-    setShowLobby(false);
-    setLobbyUsers(lobbyUsers=>{
-      if(!user) return lobbyUsers;
-      // Only add current user if not present
-      if(lobbyUsers.some(u=>u.name===user)) return lobbyUsers;
-      return lobbyUsers.concat([{name:user,emoji:"😇"}]);
-    });
-  }
-  // For demonstration, multiplayer game is just the singleplayer game for now
-  const handleModeSwitch = ()=> {
-    setGameMode(gameMode==="single" ? "multi" : "single");
-    setShowLobby(gameMode==="single");
-  };
-  function handleJoinLobby(){
-    setShowLobby(true);
-    if(user && !lobbyUsers.some(u=>u.name===user)){
-      setLobbyUsers([...lobbyUsers, {name:user,emoji:"😇"}]);
-    }
+  // --- PAGES ---
+  function LoginView() {
+    return (
+      <div className="main" style={{ justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}>
+          <div className="panel-section" style={{ margin: "0 auto", marginTop: 80 }}>
+            <h1 style={{
+              fontWeight: 800,
+              fontSize: "2.1rem",
+              color: COLORS.primary,
+              letterSpacing: ".13em",
+              textAlign: "center"
+            }}>Snake Game</h1>
+            <div style={{ color: COLORS.secondary, marginBottom: 16, textAlign: "center" }}>
+              Play a classic game of Snake! Compete for top score. Enter your nickname to begin.
+            </div>
+            <LoginPanel user={null} onLogin={handleLogin} />
+          </div>
+          <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
+            <span style={{ color: COLORS.secondary }}>© 2024 Multiplayer Snake</span>
+          </footer>
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <div className="app-wrapper">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <LoginPanel user={user} onLogin={setUser} />
-        <SettingsPanel
-          speedIdx={speedIdx} setSpeedIdx={setSpeedIdx}
-          difficultyIdx={difficultyIdx} setDifficultyIdx={setDifficultyIdx}
-          onModeSwitch={handleModeSwitch} gameMode={gameMode}
-          isInGame={inGame}
-          startSinglePlayer={handleStartSingle}
-          enterMultiplayer={handleJoinLobby}
-        />
-        <Leaderboard scores={scores} currentUser={user} />
-      </aside>
+  function SettingsView() {
+    return (
+      <div className="main" style={{ justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}>
+          <div className="panel-section" style={{ margin: "0 auto", marginTop: 80 }}>
+            <div style={{ color: COLORS.secondary, textAlign: "center", fontSize: 15, marginBottom: 5 }}>
+              Hello, <span style={{ color: COLORS.primary, fontWeight: 700 }}>{user}</span>
+            </div>
+            <h2 className="panel-title" style={{ textAlign: "center", fontSize: "1.45rem" }}>Game Settings</h2>
+            {/* Speed */}
+            <label className="panel-label">Speed</label>
+            <div className="btn-group" style={{ justifyContent: "center", marginBottom: 8 }}>
+              {SPEEDS.map((sp, idx) => (
+                <button
+                  className={`button ${speedIdx === idx ? 'primary' : ''}`}
+                  key={sp.value}
+                  onClick={() => setSpeedIdx(idx)}
+                >{sp.label}</button>
+              ))}
+            </div>
+            <label className="panel-label" style={{ marginTop: 5 }}>Difficulty</label>
+            <div className="btn-group" style={{ justifyContent: "center" }}>
+              {DIFFICULTY_LEVELS.map((dl, idx) => (
+                <button
+                  className={`button ${difficultyIdx === idx ? 'primary' : ''}`}
+                  key={dl.value}
+                  onClick={() => setDifficultyIdx(idx)}
+                >{dl.label}</button>
+              ))}
+            </div>
+            <button className="button accent" style={{ width: "100%", marginTop: 17, fontSize: 18 }}
+              onClick={handleStartFromSettings}
+            >Start Game</button>
+          </div>
+          <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
+            <span style={{ color: COLORS.secondary }}>Choose your settings and play!</span>
+          </footer>
+        </div>
+      </div>
+    );
+  }
 
-      {/* Main game area */}
-      <main className="main">
+  function GameView() {
+    return (
+      <div className="main">
         <h1 className="game-title">
-          <span style={{color:COLORS.primary}}>Snake</span>
-          <span style={{color:COLORS.accent,marginLeft:10}}>Game</span>
+          <span style={{ color: COLORS.primary }}>Snake</span>
+          <span style={{ color: COLORS.accent, marginLeft: 10 }}>Game</span>
         </h1>
         <div className="game-canvas-box">
-        {/* Show multiplayer lobby or game */}
-        {gameMode==="multi" && showLobby && (
-          <MultiplayerLobby
-            userList={lobbyUsers}
-            isInGame={inGame}
-            onStart={handleMultiplayerStart}
-          />
-        )}
-        {((gameMode==="single") || (gameMode==="multi"&&!showLobby)) && (
           <SnakeGame
             boardSize={BOARD_SIZE}
             speed={SPEEDS[speedIdx].value}
             difficulty={DIFFICULTY_LEVELS[difficultyIdx].value}
             running={inGame}
             onGameEnd={handleGameEnd}
-            onScore={()=>{}}
-            multiplayer={gameMode==="multi"}
+            onScore={() => {}}
             playerName={user}
-            competitors={gameMode==="multi"?lobbyUsers:[]}
+            competitors={[]}
           />
-        )}
-        <div className="scoreboard-box">
-          <div style={{fontWeight: 400, color:COLORS.secondary, marginTop:12}}>
-            <span style={{color:COLORS.accent}}>Your Max Score:</span>{" "}
-            <span style={{color:COLORS.primary, fontWeight:600, fontSize:"1.2rem"}}>{maxScore}</span>
+          <div className="scoreboard-box">
+            <div style={{ fontWeight: 400, color: COLORS.secondary, marginTop: 12 }}>
+              <span style={{ color: COLORS.accent }}>Your Max Score:</span>{" "}
+              <span style={{ color: COLORS.primary, fontWeight: 600, fontSize: "1.2rem" }}>{maxScore}</span>
+            </div>
           </div>
         </div>
-        </div>
         <footer className="footer">
-          <span style={{color: COLORS.secondary}}>© 2024 Multiplayer Snake | Demo | UI ready for API/WS integration</span>
+          <span style={{ color: COLORS.secondary }}>Use arrow keys. Good luck, {user}!</span>
         </footer>
-      </main>
-    </div>
+      </div>
+    );
+  }
+
+  function GameOverView() {
+    // Best score for current user from leaderboard
+    const leaderboardEntry = scores.find(s => s.name === user);
+    const bestScore = leaderboardEntry ? leaderboardEntry.score : maxScore;
+
+    return (
+      <div className="main" style={{ justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 420, alignSelf: "center" }}>
+          <div className="panel-section" style={{ margin: "0 auto", marginTop: 70 }}>
+            <h2 className="panel-title" style={{
+              textAlign: "center",
+              fontSize: "1.7rem",
+              color: COLORS.primary,
+              marginBottom: 10
+            }}>Game Over</h2>
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: 18, color: COLORS.secondary }}>Score:</span>{" "}
+              <span style={{ fontWeight: 600, fontSize: 24, color: COLORS.accent }}>{currentScore}</span>
+            </div>
+            <div style={{ textAlign: "center", marginBottom: 6 }}>
+              <span style={{ color: COLORS.primary, fontWeight: 500 }}>Best Score:</span>{" "}
+              <span style={{ fontWeight: 700, fontSize: 20, color: COLORS.primary }}>{bestScore}</span>
+            </div>
+            <button className="button accent" style={{ width: "100%", margin: "16px 0" }}
+              onClick={handleReplay}
+            >Play Again</button>
+            <div style={{ marginTop: 10, marginBottom: 5 }}>
+              <Leaderboard scores={scores} currentUser={user} />
+            </div>
+          </div>
+          <footer className="footer" style={{ marginTop: 12, textAlign: "center" }}>
+            <span style={{ color: COLORS.secondary }}>See if you made the top scores, {user}!</span>
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
+  // --- MAIN RENDER ---
+  // No sidebar in new, simplified flow; everything is one "primary" view at a time for clarity
+  return (
+    <>
+      {page === "login" && <LoginView />}
+      {page === "settings" && <SettingsView />}
+      {page === "game" && (
+        <GameView />
+      )}
+      {page === "gameover" && (
+        <GameOverView />
+      )}
+    </>
   );
 }
 
