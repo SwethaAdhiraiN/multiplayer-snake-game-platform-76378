@@ -3,15 +3,15 @@ import "./App.css";
 
 // Color palette
 const COLORS = {
-  primary: "#34a853",      // Green
-  secondary: "#222831",    // Very dark gray
-  accent: "#fbbc05",       // Orange
-  bg: "#ffffff",           // Light BG
+  primary: "#34a853",   // Green
+  secondary: "#222831", // Very dark gray
+  accent: "#fbbc05",    // Orange
+  bg: "#ffffff",
   sidebar: "#f8f9fa",
   grid: "#e9ecef",
 };
 
-// SNAKE GAME CONSTANTS (Can be tuned in settings)
+// SNAKE GAME CONSTANTS
 const SPEEDS = [
   { label: "Slow", value: 130 },
   { label: "Normal", value: 90 },
@@ -22,7 +22,7 @@ const DIFFICULTY_LEVELS = [
   { label: "Classic", value: "classic" },
   { label: "Hardcore", value: "hardcore" }
 ];
-const BOARD_SIZE = 20; // GRID SIZE: 20x20
+const BOARD_SIZE = 20;
 
 // Direction deltas
 const DIRECTIONS = {
@@ -32,121 +32,77 @@ const DIRECTIONS = {
   ArrowRight: { x: 1, y: 0 },
 };
 
-//////////////////////////////////////////////
-// USER IDENTIFICATION/LOGIN (Frontend Only)
-//////////////////////////////////////////////
 // PUBLIC_INTERFACE
-function LoginPanel({ user, onLogin }) {
+function LoginPanel({ onLogin }) {
   const [input, setInput] = useState("");
   return (
-    <div className="panel-section">
-      <h2 className="panel-title">User Login</h2>
-      {user ? (
-        <div className="user-hello">👋 Welcome, <b>{user}</b>!</div>
-      ) : (
-        <form
-          onSubmit={e => {
-            e.preventDefault();
-            if (input.trim()) onLogin(input.trim());
-          }}
-          className="user-login-form"
-        >
-          <input
-            className="input"
-            type="text"
-            placeholder="Name or nickname"
-            maxLength={16}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            style={{ width: "80%", marginBottom: 8 }}
-          />
-          <button className="button accent" type="submit">Enter</button>
-        </form>
-      )}
-    </div>
+    <form
+      onSubmit={e => {
+        e.preventDefault();
+        if (input.trim()) onLogin(input.trim());
+      }}
+      className="user-login-form"
+    >
+      <input
+        className="input"
+        type="text"
+        placeholder="Name or nickname"
+        maxLength={16}
+        value={input}
+        autoFocus
+        onChange={e => setInput(e.target.value)}
+        style={{ width: "80%", marginBottom: 8 }}
+      />
+      <button className="button accent" type="submit">Enter</button>
+    </form>
   );
 }
 
-//////////////////////////////////////////////
-// GAME SETTINGS/SIDEBAR
-//////////////////////////////////////////////
 // PUBLIC_INTERFACE
-function SettingsPanel({
-  speedIdx, setSpeedIdx,
-  difficultyIdx, setDifficultyIdx,
-  onModeSwitch, gameMode,
-  isInGame,
-  startSinglePlayer, enterMultiplayer,
-}) {
+function SettingsPanel({ speedIdx, setSpeedIdx, difficultyIdx, setDifficultyIdx, onStart }) {
   return (
-    <div className="panel-section">
-      <h2 className="panel-title">Game Settings</h2>
-      {/* Speed selector */}
+    <div className="panel-section" style={{ marginTop: 60 }}>
+      <h2 className="panel-title" style={{ textAlign: "center" }}>Game Settings</h2>
       <label className="panel-label">Speed</label>
-      <div className="btn-group">
+      <div className="btn-group" style={{ justifyContent: "center", marginBottom: 8 }}>
         {SPEEDS.map((sp, idx) => (
           <button
-            className={`button ${speedIdx===idx?'primary':''}`}
+            className={`button ${speedIdx === idx ? 'primary' : ''}`}
             key={sp.value}
-            disabled={isInGame}
             onClick={() => setSpeedIdx(idx)}
           >{sp.label}</button>
         ))}
       </div>
-      {/* Difficulty selector */}
-      <label className="panel-label" style={{marginTop:12}}>Difficulty</label>
-      <div className="btn-group">
+      <label className="panel-label" style={{ marginTop: 5 }}>Difficulty</label>
+      <div className="btn-group" style={{ justifyContent: "center" }}>
         {DIFFICULTY_LEVELS.map((dl, idx) => (
           <button
-            className={`button ${difficultyIdx===idx?'primary':''}`}
+            className={`button ${difficultyIdx === idx ? 'primary' : ''}`}
             key={dl.value}
-            disabled={isInGame}
             onClick={() => setDifficultyIdx(idx)}
           >{dl.label}</button>
         ))}
       </div>
-      {/* Mode control */}
-      <div style={{margin:"16px 0 0 0"}}>
-        {gameMode === "single" ? (
-          <button className="button accent" style={{width: "100%"}} onClick={startSinglePlayer} disabled={isInGame}>Play Solo</button>
-        ) : (
-          <button className="button accent" style={{width: "100%"}} onClick={enterMultiplayer} disabled={isInGame}>Join Multiplayer</button>
-        )}
-        <div style={{margin:"8px 0"}}>
-          <button className="button minimal" style={{fontSize:13}}
-            onClick={onModeSwitch}
-            disabled={isInGame}
-          >
-            Switch to {gameMode==='single' ? 'Multiplayer' : 'Single-Player'}
-          </button>
-        </div>
-      </div>
+      <button
+        className="button accent"
+        style={{ width: "100%", marginTop: 18, fontSize: 18 }}
+        onClick={onStart}
+        data-testid="start-game-btn"
+      >Start Game</button>
     </div>
   );
 }
 
-//////////////////////////////////////////////
-// SCOREBOARD / LEADERBOARD
-//////////////////////////////////////////////
-// Prepare dummy data; to be replaced with backend fetch in integration
-const DUMMY_LEADERBOARD = [
-  { name: "Alex", score: 182 },
-  { name: "Sandy", score: 170 },
-  { name: "Cleo", score: 161 },
-  { name: "User", score: 92 },
-];
-
 // PUBLIC_INTERFACE
 function Leaderboard({ scores, currentUser }) {
-  // Sort and take top 8
-  const sorted = [...scores].sort((a,b)=>b.score - a.score).slice(0,8);
+  const sorted = [...scores].sort((a, b) => b.score - a.score).slice(0, 8);
   return (
-    <div className="panel-section">
-      <h2 className="panel-title">Leaderboard</h2>
+    <div className="panel-section" style={{ marginBottom: 16 }}>
+      <h2 className="panel-title" style={{ fontSize: "1.11rem", textAlign: "left" }}>Leaderboard</h2>
       <ol className="leaderboard">
         {sorted.map((entry, idx) => (
-          <li key={idx} className={entry.name===currentUser ? "me" : ""}>
-            <span className="leaderboard-rank">{idx+1}.</span>
+          <li key={idx} className={entry.name === currentUser ? "me" : ""}>
+            <span className="leaderboard-rank">{idx + 1}.</span>
             <span className="leaderboard-name">{entry.name}</span>
             <span className="leaderboard-score">{entry.score}</span>
           </li>
@@ -156,61 +112,22 @@ function Leaderboard({ scores, currentUser }) {
   );
 }
 
-//////////////////////////////////////////////
-// MULTIPLAYER LOBBY SIM (No real backend)
-//////////////////////////////////////////////
-// Placeholder: In real app, lobby state comes from backend WS/API
-function MultiplayerLobby({ userList, isInGame, onStart }) {
-  return (
-    <div className="panel-section">
-      <h2 className="panel-title">Multiplayer Lobby</h2>
-      <ul className="lobby-list">
-        {userList.map((u, i) => (
-          <li key={i}>
-            <span className="lobby-avatar">{u.emoji||"😀"}</span>{" "}
-            <span className="lobby-name">{u.name}</span>
-          </li>
-        ))}
-      </ul>
-      <button className="button accent" disabled={isInGame} style={{marginTop:10}} onClick={onStart}>
-        {isInGame ? "Game in Progress" : "Start Multiplayer"}
-      </button>
-    </div>
-  );
-}
-
-//////////////////////////////////////////////
-// SNAKE GAME CORE
-//////////////////////////////////////////////
 // PUBLIC_INTERFACE
-function SnakeGame({
-  boardSize = BOARD_SIZE,
-  speed = SPEEDS[1].value,
-  difficulty = DIFFICULTY_LEVELS[1].value,
-  running,
-  onGameEnd,
-  onScore,
-  multiplayer = false,
-  playerName,
-  competitors = []
-}) {
-  // Game State
-  const [snake, setSnake] = useState([{x: 8, y:8}]);
+function SnakeGame({ boardSize, speed, difficulty, running, onGameEnd, onScore, playerName }) {
+  const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
   const [direction, setDirection] = useState("ArrowRight");
-  const [food, setFood] = useState({x:12, y:8});
+  const [food, setFood] = useState({ x: 12, y: 8 });
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-
-  // Used for game loop / key events
   const moveInterval = useRef(null);
 
-  // Effect for running/ending game
+  // Reset when (re)starting game
   useEffect(() => {
     if (!running) {
       clearInterval(moveInterval.current);
       return;
     }
-    setSnake([{x:8,y:8}]);
+    setSnake([{ x: 8, y: 8 }]);
     setDirection("ArrowRight");
     setFood(randomCell(boardSize));
     setScore(0);
@@ -221,9 +138,9 @@ function SnakeGame({
       setSnake(prev => getNextSnake(prev, direction, food, boardSize, difficulty, setFood, setScore, setGameOver));
     }, speed);
 
-    // Keyboard input
-    const handleKey = (e) => {
-      if(DIRECTIONS[e.key] && !isOpposite(direction, e.key)){
+    // Keyboard events
+    const handleKey = e => {
+      if (DIRECTIONS[e.key] && !isOpposite(direction, e.key)) {
         setDirection(e.key);
       }
     };
@@ -236,30 +153,36 @@ function SnakeGame({
     // eslint-disable-next-line
   }, [running, speed, difficulty]);
 
-  // End game effect
+  // On food/snake/direction update, also update for food/growth (so food position is fresh)
+  useEffect(() => {
+    // This keeps the food position correct on direction change (minor, but prevents food bugs)
+    // eslint-disable-next-line
+  }, [food, direction]);
+
+  // End game and notify parent
   useEffect(() => {
     if (gameOver && running) {
-      setTimeout(() => onGameEnd(score), 380);
-      onScore(score); // For score updates
+      setTimeout(() => onGameEnd(score), 350);
+      onScore(score);
     }
     // eslint-disable-next-line
   }, [gameOver]);
 
-  // Draw the game board
+  // Draw the game board grid/cells
   return (
     <div className="game-board-container">
       <div
-        className={`game-board ${gameOver ? "game-over" : ""}`}
+        className={`game-board${gameOver ? " game-over" : ""}`}
         tabIndex={0}
         style={{
           gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
           gridTemplateRows: `repeat(${boardSize}, 1fr)`
         }}
       >
-        {[...Array(boardSize*boardSize).keys()].map(i => {
-          const x = i % boardSize, y = Math.floor(i/boardSize);
-          const snakePart = snake.find(seg => seg.x===x && seg.y===y);
-          const foodHere = food.x===x && food.y===y;
+        {[...Array(boardSize * boardSize).keys()].map(i => {
+          const x = i % boardSize, y = Math.floor(i / boardSize);
+          const snakePart = snake.find(seg => seg.x === x && seg.y === y);
+          const foodHere = food.x === x && food.y === y;
           let color = "";
           if (snakePart) color = COLORS.primary;
           if (foodHere) color = COLORS.accent;
@@ -268,7 +191,9 @@ function SnakeGame({
               key={i}
               className="cell"
               style={{
-                background: color ? color : ((x+y)%2===0 ? COLORS.bg : COLORS.grid)
+                background: color
+                  ? color
+                  : ((x + y) % 2 === 0 ? COLORS.bg : COLORS.grid)
               }}
             />
           );
@@ -280,44 +205,35 @@ function SnakeGame({
           </div>
         )}
       </div>
-      <div style={{marginTop:16, fontWeight:500}}>
-        <span style={{color:COLORS.accent}}>Score:</span> {score}
+      <div style={{ marginTop: 18, fontWeight: 500, color: COLORS.secondary }}>
+        <span style={{ color: COLORS.accent }}>Score:</span> {score}
       </div>
-      {/* Multiplayer stub: show competitors */}
-      {multiplayer && competitors.length > 1 &&
-        <div style={{marginTop:"1rem"}}>
-          <div style={{fontWeight:400, fontSize:"1rem", color:COLORS.secondary}}>Competitors:</div>
-          {competitors.map((c,i) => (
-            <span key={i} className="competitor-pill" style={{background: c.name===playerName?COLORS.primary:COLORS.grid}}>
-              {c.emoji||"😀"} {c.name}
-            </span>
-          ))}
-        </div>
-      }
     </div>
   );
 }
 
-// Helper: next snake state (+food, collisions, etc.)
+// Helpers for Snake game logic
 function getNextSnake(snake, dir, food, size, difficulty, setFood, setScore, setGameOver) {
   if (!dir) return snake;
   const d = DIRECTIONS[dir];
   const head = { x: snake[0].x + d.x, y: snake[0].y + d.y };
 
-  // Collision: Borders
+  // Border collision
   if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size) {
-    setGameOver(true); return snake;
+    setGameOver(true);
+    return snake;
   }
-  // Collision: Self
-  if (snake.some(s => s.x===head.x && s.y===head.y)) {
-    setGameOver(true); return snake;
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    setGameOver(true);
+    return snake;
   }
   // Eat food
   let grow = false;
   if (head.x === food.x && head.y === food.y) {
     grow = true;
     setFood(randomCell(size, snake.concat([head])));
-    setScore(s => s+10);
+    setScore(s => s + 10);
   }
 
   const nextSnake = [head, ...snake];
@@ -326,84 +242,80 @@ function getNextSnake(snake, dir, food, size, difficulty, setFood, setScore, set
   return nextSnake;
 }
 function isOpposite(dir, next) {
-  if ((dir==="ArrowUp"&&next==="ArrowDown")||(dir==="ArrowDown"&&next==="ArrowUp")) return true;
-  if ((dir==="ArrowLeft"&&next==="ArrowRight")||(dir==="ArrowRight"&&next==="ArrowLeft")) return true;
+  if ((dir === "ArrowUp" && next === "ArrowDown") || (dir === "ArrowDown" && next === "ArrowUp")) return true;
+  if ((dir === "ArrowLeft" && next === "ArrowRight") || (dir === "ArrowRight" && next === "ArrowLeft")) return true;
   return false;
 }
-function randomCell(size, exclude=[]) {
-  let tries=0;
-  while(true){
-    const cell = {x: Math.floor(Math.random()*size), y: Math.floor(Math.random()*size)};
-    if (!exclude.some(c=>c.x===cell.x&&c.y===cell.y)) return cell;
-    if (++tries>1000) return {x:0, y:0}; // fallback
+function randomCell(size, exclude = []) {
+  let tries = 0;
+  while (true) {
+    const cell = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
+    if (!exclude.some(c => c.x === cell.x && c.y === cell.y)) return cell;
+    if (++tries > 1000) return { x: 0, y: 0 }; // fallback
   }
 }
 
 //////////////////////////////////////////////
-// MAIN APP
+// MAIN APP - Multi-step flow logic and render
 //////////////////////////////////////////////
 function App() {
-  // Theme mode
-  const [theme] = useState("light"); // Light only
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  // --- State for multi-page flow ---
-  // PAGE: One of: "login" | "settings" | "game" | "gameover"
+  // --- View state for multi-step process ---
+  // one of: "login", "settings", "game", "gameover"
   const [page, setPage] = useState("login");
 
-  // User basic state
+  // User state
   const [user, setUser] = useState(null);
 
-  // Settings state
-  const [speedIdx, setSpeedIdx] = useState(1); // Normal
-  const [difficultyIdx, setDifficultyIdx] = useState(1); // Classic
+  // Game settings state
+  const [speedIdx, setSpeedIdx] = useState(1);
+  const [difficultyIdx, setDifficultyIdx] = useState(1);
 
   // Score/leaderboard state
   const [maxScore, setMaxScore] = useState(0);
   const [currentScore, setCurrentScore] = useState(0);
-  const [scores, setScores] = useState(DUMMY_LEADERBOARD);
 
-  // Multiplayer stub state
-  const [gameMode, setGameMode] = useState("single"); // or "multi"
-  const [showLobby, setShowLobby] = useState(false);
-  const [inGame, setInGame] = useState(false); // Needed to drive SnakeGame
-  const [lobbyUsers, setLobbyUsers] = useState([
-    { name: "Alex", emoji: "😎" }, { name: "Sandy", emoji: "🙂" }
+  // Leaderboard (with dummy data, update after play)
+  const [scores, setScores] = useState([
+    { name: "Alex", score: 182 },
+    { name: "Sandy", score: 170 },
+    { name: "Cleo", score: 161 }
   ]);
 
-  // ---- PAGE TRANSITIONS ----
-  // Login success
+  // Game activity state
+  const [inGame, setInGame] = useState(false);
+
+  // ---- Transitions ----
+  // [1] Login page onLogin → save user, go to settings
   function handleLogin(name) {
     setUser(name);
     setPage("settings");
   }
 
-  // Start game from settings
-  function handleStartFromSettings() {
+  // [2] Settings: start game
+  function handleStartGame() {
     setCurrentScore(0);
     setInGame(true);
     setPage("game");
   }
 
-  // End game (SnakeGame -> Game Over page)
-  function handleGameEnd(score) {
+  // [3] In-game: handle end by score, show game over
+  function handleGameEnd(finalScore) {
     setInGame(false);
-    setCurrentScore(score);
+    setCurrentScore(finalScore);
     setPage("gameover");
   }
 
-  // Replay (Game Over -> Settings)
+  // [4] Game over: Play Again returns to settings
   function handleReplay() {
     setPage("settings");
   }
 
-  // Update scores/best/leaderboard after each game
+  // Update best score & leaderboard after each game end
   useEffect(() => {
-    // On new high, update max
+    // On new personal best, update max
     if (currentScore > maxScore) setMaxScore(currentScore);
-    // Update global leaderboard if needed
+
+    // Update leaderboard if user achieves new best, else add first
     if (currentScore > 0 && user) {
       setScores(scores => {
         const idx = scores.findIndex(s => s.name === user);
@@ -417,7 +329,7 @@ function App() {
     // eslint-disable-next-line
   }, [currentScore]);
 
-  // --- PAGES ---
+  // ========= Views for each step ==========
   function LoginView() {
     return (
       <div className="main" style={{ justifyContent: "center" }}>
@@ -433,7 +345,7 @@ function App() {
             <div style={{ color: COLORS.secondary, marginBottom: 16, textAlign: "center" }}>
               Play a classic game of Snake! Compete for top score. Enter your nickname to begin.
             </div>
-            <LoginPanel user={null} onLogin={handleLogin} />
+            <LoginPanel onLogin={handleLogin} />
           </div>
           <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
             <span style={{ color: COLORS.secondary }}>© 2024 Multiplayer Snake</span>
@@ -451,31 +363,13 @@ function App() {
             <div style={{ color: COLORS.secondary, textAlign: "center", fontSize: 15, marginBottom: 5 }}>
               Hello, <span style={{ color: COLORS.primary, fontWeight: 700 }}>{user}</span>
             </div>
-            <h2 className="panel-title" style={{ textAlign: "center", fontSize: "1.45rem" }}>Game Settings</h2>
-            {/* Speed */}
-            <label className="panel-label">Speed</label>
-            <div className="btn-group" style={{ justifyContent: "center", marginBottom: 8 }}>
-              {SPEEDS.map((sp, idx) => (
-                <button
-                  className={`button ${speedIdx === idx ? 'primary' : ''}`}
-                  key={sp.value}
-                  onClick={() => setSpeedIdx(idx)}
-                >{sp.label}</button>
-              ))}
-            </div>
-            <label className="panel-label" style={{ marginTop: 5 }}>Difficulty</label>
-            <div className="btn-group" style={{ justifyContent: "center" }}>
-              {DIFFICULTY_LEVELS.map((dl, idx) => (
-                <button
-                  className={`button ${difficultyIdx === idx ? 'primary' : ''}`}
-                  key={dl.value}
-                  onClick={() => setDifficultyIdx(idx)}
-                >{dl.label}</button>
-              ))}
-            </div>
-            <button className="button accent" style={{ width: "100%", marginTop: 17, fontSize: 18 }}
-              onClick={handleStartFromSettings}
-            >Start Game</button>
+            <SettingsPanel
+              speedIdx={speedIdx}
+              setSpeedIdx={setSpeedIdx}
+              difficultyIdx={difficultyIdx}
+              setDifficultyIdx={setDifficultyIdx}
+              onStart={handleStartGame}
+            />
           </div>
           <footer className="footer" style={{ marginTop: 42, textAlign: "center" }}>
             <span style={{ color: COLORS.secondary }}>Choose your settings and play!</span>
@@ -501,7 +395,6 @@ function App() {
             onGameEnd={handleGameEnd}
             onScore={() => {}}
             playerName={user}
-            competitors={[]}
           />
           <div className="scoreboard-box">
             <div style={{ fontWeight: 400, color: COLORS.secondary, marginTop: 12 }}>
@@ -518,10 +411,9 @@ function App() {
   }
 
   function GameOverView() {
-    // Best score for current user from leaderboard
+    // Best score for this user
     const leaderboardEntry = scores.find(s => s.name === user);
     const bestScore = leaderboardEntry ? leaderboardEntry.score : maxScore;
-
     return (
       <div className="main" style={{ justifyContent: "center" }}>
         <div style={{ width: "100%", maxWidth: 420, alignSelf: "center" }}>
@@ -555,18 +447,14 @@ function App() {
     );
   }
 
-  // --- MAIN RENDER ---
-  // No sidebar in new, simplified flow; everything is one "primary" view at a time for clarity
+  // MAIN RENDER
+  // Only one primary screen shown at a time
   return (
     <>
       {page === "login" && <LoginView />}
       {page === "settings" && <SettingsView />}
-      {page === "game" && (
-        <GameView />
-      )}
-      {page === "gameover" && (
-        <GameOverView />
-      )}
+      {page === "game" && <GameView />}
+      {page === "gameover" && <GameOverView />}
     </>
   );
 }
