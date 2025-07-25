@@ -9,18 +9,6 @@
   --color-grid: #e9ecef;
   --color-text: #282c34;
   --color-text-dim: #888;
-
-  /* 3D effect variables */
-  --cube-shadow: 0 10px 30px -8px rgba(44, 62, 80, 0.13), 0 2.5px 5px 0 #a4b3ca33;
-  --cube-light: linear-gradient(135deg, #faffe8 45%, #eaf8e2 85%);
-  --cube-dark: linear-gradient(120deg, #d3eae0 0%, #c7dbeb 100%);
-  --snake-3d-gradient: linear-gradient(165deg, #37c75a 50%, #26823e 95%);
-  --snake-3d-shadow: 0 8px 28px 0 #2b824440, 0 1.5px 5px 0 #1e573233;
-  --food-3d-gradient: linear-gradient(135deg, #ffe68f 60%, #f4a301 100%);
-  --food-3d-shadow: 0 8px 28px 0 #fbbf0540, 0 1.5px 7px 0 #ad870233;
-
-  --3d-perspective: 900px;
-  --3d-rotate: rotateX(18deg) rotateZ(2deg);
 }
 
 body, html {
@@ -28,102 +16,84 @@ body, html {
   color: var(--color-text);
 }
 
-.game-board-3d-wrapper {
-  perspective: var(--3d-perspective);
-  margin: 1.6rem 0 0.6rem 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: perspective 0.28s;
-}
-
+/* Classic 2D Snake Game Board */
 .game-board {
   display: grid;
   background: var(--color-grid);
-  border-radius: 18px;
+  border-radius: 12px;
   border: 2.5px solid var(--color-primary);
-  transition: box-shadow 0.2s, transform 0.33s cubic-bezier(.71,1.7,.32,1.21);
-  box-shadow: var(--cube-shadow), 0 1px 7px 0 rgba(51,57,64,0.09);
+  box-shadow: 0 2px 9px 0 rgba(44, 62, 80, 0.07), 0 0.5px 2.5px 0 #a4b3ca14;
   width: 24vw;
-  min-width: 360px;
-  max-width: 420px;
+  min-width: 330px;
+  max-width: 430px;
   aspect-ratio: 1/1;
   position: relative;
   user-select: none;
   outline: none;
-  will-change: transform;
-  /* Core 3D tilt effect */
-  transform: var(--3d-rotate) scale3d(1, 1, 0.98);
-  background: var(--cube-light);
+  margin: 1.6rem 0;
+  transition: box-shadow 0.2s;
+  background: #f7f7fa;
 }
 
 @media (max-width: 1100px) {
-  .game-board { min-width: 270px; }
+  .game-board { min-width: 210px; }
 }
 @media (max-width: 768px) {
-  .game-board { min-width: 165px; width: 95vw; max-width: 99vw; }
+  .game-board { min-width: 124px; width: 95vw; max-width: 99vw; }
 }
 
 .cell {
   width: 100%;
   height: 100%;
-  background: var(--color-bg);
-  border-radius: 8px;
-  box-shadow: 0 0.5px 2.5px 0 #bde4cb33;
-  transition: background 0.1s, box-shadow 0.13s, border-radius 0.17s, transform 0.15s cubic-bezier(.73,1.2,.21,1.05);
-  /* 3D cell shading with light source top-left */
-  background: linear-gradient(140deg, #fcfcfc 67%, #d0e3e8 100%);
-  position: relative;
-  z-index: 1;
+  background: #f7f7fa;
+  border-radius: 6px;
+  box-shadow: 0 0.5px 2.5px 0 #bde4cb21;
+  transition: background 0.1s, box-shadow 0.13s, border-radius 0.17s;
+  /* Classic chessboard pattern (lighter squares) */
 }
 
 .cell.snake {
-  background: var(--snake-3d-gradient);
+  background: var(--color-primary);
   border-radius: 32% 38% 34% 30%/30% 32% 40% 33%;
-  box-shadow: var(--snake-3d-shadow), 0 3.5px 17px 0 #34a85323;
-  border: 1.3px solid #37c75a80;
-  /* Simulate thickness using a shadow-on-bottom/rim effect */
-  position: relative;
+  box-shadow: 0 2.5px 12px 0 #34a85323;
+  border: 1.3px solid #28934a80;
   z-index: 3;
   animation: snakeWobble 0.09s linear;
 }
 @keyframes snakeWobble {
-  0% { transform: scale(1.18) }
+  0% { transform: scale(1.11) }
   100% { transform: scale(1.0) }
 }
 
 .cell.snake-head {
-  background: linear-gradient(149deg, #5af670 60%, #34a853 98%);
-  box-shadow: 0 8px 38px -5px #41e87842, 0 1px 11px -2px #257c34ab;
-  border: 2.5px solid #228a3b;
+  background: #64e175;
+  box-shadow: 0 3px 18px -5px #41e87832, 0 1px 6px -2px #257c34ab;
+  border: 2px solid #1f7139;
   z-index: 5;
   animation: snakeHeadBump 0.085s linear;
 }
 @keyframes snakeHeadBump {
-  0% { transform: scale(1.23);}
+  0% { transform: scale(1.16);}
   100% { transform: scale(1);}
 }
 
 .cell.food {
-  background: var(--food-3d-gradient);
+  background: var(--color-accent);
   border-radius: 50%;
-  box-shadow: var(--food-3d-shadow), 0 0.5px 5px 0 #fbbc058b;
-  border: 1.6px solid #fffbe7;
+  border: 1.3px solid #fffbe7;
   z-index: 4;
-  animation: foodPulse 0.5s ease;
+  animation: foodPulse 0.37s ease;
 }
 @keyframes foodPulse {
-  0% { transform: scale(0.79);}
+  0% { transform: scale(0.82);}
   100% { transform: scale(1);}
 }
 
 .game-board:hover {
-  /* Subtle tilt and scale up on hover for fun depth interaction */
-  transform: rotateX(23deg) rotateZ(3deg) scale3d(1.015,1.018,0.98);
-  box-shadow: 0 0 0 #0000, 0 15px 32px 0 #10852b16, 0 5.5px 16px 0 #34a85518;
+  box-shadow: 0 0 0 #0000, 0 8px 22px 0 #10852b0a, 0 2.5px 6px 0 #34a85508;
 }
 .game-board:active {
-  transform: rotateX(19deg) rotateZ(1deg) scale3d(0.98,0.97,1);
+  box-shadow: 0 0 0 #0000;
 }
 
 .game-board-container {
@@ -139,7 +109,7 @@ body, html {
 }
 
 .game-over {
-  filter: blur(1.2px) grayscale(0.1) grayscale(0.19);
+  filter: blur(1.05px) grayscale(0.07);
 }
 .game-over-overlay {
   position: absolute;
@@ -158,14 +128,15 @@ body, html {
   animation: fade-in 0.25s;
 }
 .score-popup {
-  color: var(--color-primary); margin-top: 10px; font-size: 1.3rem;
+  color: var(--color-primary);
+  margin-top: 10px; font-size: 1.3rem;
 }
 @keyframes fade-in {
   0% { opacity: 0; transform: translate(-50%,-90%) scale(0.9);}
   100% { opacity: 1; transform: translate(-50%,-60%) scale(1);}
 }
 
-/* (Remaining: global layout, sidebar, panels, buttons, etc.) */
+/* (Global layout, sidebar, panels, buttons, etc.) */
 .app-wrapper,
 .responsive-root {
   display: flex;
@@ -178,9 +149,7 @@ body, html {
   overflow: hidden;
   width: 100vw;
 }
-/* ... the rest of original App.css remains unchanged ... */
 
-/* Leaderboard, lobby, panels, sidebar, etc. - not repeated for brevity, paste original App.css content after here if merging */
 .sidebar,
 .responsive-sidebar {
   background: var(--color-bg-sidebar);
@@ -204,6 +173,14 @@ body, html {
   gap: 0.7em;
   justify-content: flex-start;
 }
-/* ... Continued original CSS ... */
+/* Feel free to add more modern, minimal panel/sidebar design as pre-3d */
+
+.footer, .sidebar-footer {
+  color: #888;
+  font-size: 0.98em;
+  opacity: 0.79;
+  margin-top: 14px;
+  text-align: center;
+}
 
 /* End of custom additions */

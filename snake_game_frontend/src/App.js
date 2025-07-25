@@ -345,7 +345,7 @@ function App() {
       // eslint-disable-next-line
     }, [gameOver]);
 
-    // Cell rendering with 3D className application
+    // Classic 2D: renderCell with flat style
     function renderCell(x, y, key) {
       const snakeIndex = snake.findIndex(seg => seg.x === x && seg.y === y);
       const foodHere = food.x === x && food.y === y;
@@ -361,19 +361,17 @@ function App() {
       let cellBg = undefined;
       if (!(snakeIndex >= 0) && !foodHere) {
         cellBg = (x + y) % 2 === 0
-          ? "#fcfcfc"
-          : "#f3f6f9";
+          ? "#f7f7fa"
+          : "#ecf2f8";
       }
       return (
         <div
           key={key}
           className={cellClass}
           style={{
-            background: cellClass.includes("snake")
+            background: cellClass.includes("snake") || cellClass.includes("food")
               ? undefined
-              : cellClass.includes("food")
-                ? undefined
-                : cellBg,
+              : cellBg,
             borderRadius: cellClass.includes("snake") || cellClass.includes("food") ? "8px" : "3.5px"
           }}
         ></div>
