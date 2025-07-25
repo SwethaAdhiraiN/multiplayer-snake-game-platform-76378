@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
 // Component imports
@@ -6,8 +6,11 @@ import GameBoard from "./components/GameBoard";
 import Leaderboard from "./components/Leaderboard";
 import LoginPanel from "./components/LoginPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import Sidebar from "./components/Sidebar";
+import MultiplayerLobby from "./components/MultiplayerLobby";
+import MultiplayerGame from "./components/MultiplayerGame";
 
-// --- Design constants from project description ---
+// --- Design/feature constants
 const SPEEDS = [
   { label: "Slow", value: 130 },
   { label: "Normal", value: 90 },
@@ -20,147 +23,262 @@ const DIFFICULTY_LEVELS = [
 ];
 const BOARD_SIZE = 20;
 
-// Sequential Steps
 const FLOW = {
   LOGIN: "login",
-  DIFFICULTY: "difficulty",
-  GAME: "game",
+  SETUP: "setup",
+  SINGLE: "singleplayer",
+  MULTI_LOBBY: "multilobby",
+  MULTI_WAIT: "multiwait",
+  MULTI_GAME: "multiplayer",
   GAMEOVER: "gameover"
 };
 
 function App() {
-  // --- Step state for sequential flow ---
+  // ----- User & App State -----
   const [stage, setStage] = useState(FLOW.LOGIN);
-
-  // User state
   const [user, setUser] = useState(null);
+  const [userToken, setUserToken] = useState(null);
 
-  // Difficulty/Speed
-  const [difficultyIdx, setDifficultyIdx] = useState(1); // Default: Classic
-  const [speedIdx, setSpeedIdx] = useState(1); // Default: Normal
+  // Game Configs
+  const [speedIdx, setSpeedIdx] = useState(1);
+  const [difficultyIdx, setDifficultyIdx] = useState(1);
 
-  // Game score state
+  // Multiplayer
+  const [inMultiplayer, setInMultiplayer] = useState(false);
+  const [multiRoom, setMultiRoom] = useState(null);
+  const [multiOpponent, setMultiOpponent] = useState(null);
+
+  // Score/Leaderboard state
   const [currentScore, setCurrentScore] = useState(0);
-  const [scores, setScores] = useState([
-    { name: "Alex", score: 182 },
-    { name: "Sandy", score: 170 },
-    { name: "Cleo", score: 161 }
-  ]);
-  const maxScore = scores.find(s => s.name === user)?.score || 0;
+  const [maxScore, setMaxScore] = useState(0);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [scoresLoading, setScoresLoading] = useState(true);
 
-  // ---- Flow handlers ----
+  // ----- API endpoints/config -----
+  const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000/api";
+  // e.g. "/api/leaderboard", "/api/login", "/api/rooms", "/api/start", etc.
+
+  // ----- Auth/Leaderboard Effect -----
+  useEffect(() => {
+    if (user) {
+      fetchLeaderboard();
+      fetchUserBest();
+    }
+    // eslint-disable-next-line
+  }, [user]);
+
+  // Fetch leaderboard from backend
+  async function fetchLeaderboard() {
+    setScoresLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/leaderboard`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setLeaderboard(data?.scores || []);
+    } catch {
+      setLeaderboard([]);
+    }
+    setScoresLoading(false);
+  }
+
+  // Fetch just this user's best
+  async function fetchUserBest() {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API_BASE}/scores/${encodeURIComponent(user)}`);
+      if (!res.ok) throw new Error("User score missing");
+      const d = await res.json();
+      setMaxScore(typeof d.maxScore === "number" ? d.maxScore : 0);
+    } catch {
+      setMaxScore(0);
+    }
+  }
+
+  // Post new score (single player)
+  async function postScore(score) {
+    if (!user) return;
+    try {
+      await fetch(`${API_BASE}/scores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user, score })
+      });
+      fetchLeaderboard();
+      fetchUserBest();
+    } catch {}
+  }
+
+  // ----- Flow Handlers -----
+
   // Step 1: Login
-  function handleLogin(name) {
+  async function handleLogin(name) {
+    // Optionally a backend login/register API
     setUser(name);
-    setStage(FLOW.DIFFICULTY);
+    setUserToken(""); // Placeholder for token if needed
+    setStage(FLOW.SETUP);
   }
 
-  // Step 2: Choose difficulty/speed
+  // Step 2: Game setup (or Multiplayer switch)
   function handleStartGame() {
-    setCurrentScore(0);
-    setStage(FLOW.GAME);
+    setInMultiplayer(false);
+    setStage(FLOW.SINGLE);
+  }
+  function handleGoMultiplayer() {
+    setStage(FLOW.MULTI_LOBBY);
+    setInMultiplayer(true);
+    setMultiRoom(null);
+    setMultiOpponent(null);
   }
 
-  // Step 3: Game logic handled by GameScreen
-  function handleGameOver(score) {
+  // Step 3: SINGLEPLAYER GAME & GAMEOVER
+  function handleSingleComplete(score) {
     setCurrentScore(score);
-    // Update scores/leaderboard if relevant
-    setScores(prev => {
-      const idx = prev.findIndex(s => s.name === user);
-      if (idx < 0) return [...prev, { name: user, score }];
-      if (prev[idx].score >= score) return prev;
-      const next = [...prev];
-      next[idx] = { name: user, score };
-      return next;
-    });
+    if (score > maxScore) setMaxScore(score);
+    postScore(score);
     setStage(FLOW.GAMEOVER);
   }
 
-  // Step 4: Game over/score screen
+  // Step 4: MULTIPLAYER FLOW
+  function handleMultiplayerJoin(roomId) {
+    // Demo: In real app, call backend/join room endpoint; here, we just "join"
+    setMultiRoom(roomId);
+    setStage(FLOW.MULTI_WAIT);
+    // Listen for match/ready signal from backend, then stage->FLOW.MULTI_GAME
+    setTimeout(() => {
+      // In real app, this is a websocket ready event or similar
+      setMultiOpponent("Opponent");
+      setStage(FLOW.MULTI_GAME);
+    }, 900);
+  }
+  function handleMultiplayerCreate(roomName) {
+    // Real app: POST to backend to create room
+    setMultiRoom(roomName);
+    setMultiOpponent(null);
+    setStage(FLOW.MULTI_WAIT);
+    setTimeout(() => {
+      // Simulate someone joining
+      setMultiOpponent("Opponent");
+      setStage(FLOW.MULTI_GAME);
+    }, 1400);
+  }
+  function handleMultiplayerComplete(result) {
+    setStage(FLOW.GAMEOVER);
+  }
+  function handleExitMultiplayer() {
+    setMultiRoom(null);
+    setMultiOpponent(null);
+    setInMultiplayer(false);
+    setStage(FLOW.SETUP);
+  }
+
+  // GAMEOVER & RESET FLOW
   function handleRestart() {
-    setStage(FLOW.DIFFICULTY);
+    setCurrentScore(0);
+    setStage(FLOW.SETUP);
   }
   function handleLogout() {
     setUser(null);
+    setUserToken(null);
     setStage(FLOW.LOGIN);
+    setMaxScore(0);
+    setLeaderboard([]);
+    setCurrentScore(0);
+    setInMultiplayer(false);
+    setMultiRoom(null);
+    setMultiOpponent(null);
   }
 
-  // --- Screens ---
+  // ----- Screens -----
   function LoginScreen() {
     return (
       <div className="gameflow-bg">
         <div className="gameflow-panel login">
           <div className="gameflow-title">Snake Game</div>
           <div className="gameflow-desc">
-            Welcome! Enter your nickname to begin.
+            Welcome! Enter your nickname to play.
           </div>
           <LoginPanel onLogin={handleLogin} />
         </div>
         <footer className="gameflow-footer">
-          <span>© 2024 Multiplayer Snake</span>
+          Multiplayer Snake &copy; 2024
         </footer>
       </div>
     );
   }
 
-  function DifficultyScreen() {
+  function SetupScreen() {
     return (
-      <div className="gameflow-bg">
-        <div className="gameflow-panel difficulty">
-          <div className="gameflow-title" style={{marginBottom: 12}}>
-            Select Difficulty & Speed
-          </div>
-          <div style={{color: "var(--color-text-dim)", marginBottom: 13, fontSize: "1.05rem"}}>
-            Player: <span style={{color: "#34a853", fontWeight: 700}}>{user}</span>
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <label className="panel-label">Speed</label>
-            <div className="btn-group" style={{justifyContent: "center"}}>
-              {SPEEDS.map((sp, idx) => (
-                <button
-                  className={`button gameflow-btn ${speedIdx === idx ? "primary selected" : ""}`}
-                  key={sp.value}
-                  onClick={() => setSpeedIdx(idx)}
-                  type="button"
-                >{sp.label}</button>
-              ))}
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          settingsPanel={
+            <SettingsPanel
+              speedIdx={speedIdx}
+              setSpeedIdx={setSpeedIdx}
+              difficultyIdx={difficultyIdx}
+              setDifficultyIdx={setDifficultyIdx}
+              onStart={handleStartGame}
+            />
+          }
+          leaderboardPanel={
+            <Leaderboard
+              scores={leaderboard.length ? leaderboard : [{ name: user, score: maxScore }]}
+              currentUser={user}
+            />
+          }
+          multiplayerPanel={
+            <div className="panel-section" style={{ marginBottom: 16 }}>
+              <h2 className="panel-title" style={{ textAlign: "center" }}>
+                Multiplayer
+              </h2>
+              <div style={{ fontSize: 14, marginBottom: 8 }}>
+                Compete live with friends!
+              </div>
+              <button
+                className="button primary"
+                style={{ width: "100%" }}
+                onClick={handleGoMultiplayer}
+                type="button"
+              >
+                Multiplayer Lobby
+              </button>
             </div>
-          </div>
-          <div style={{marginBottom: 15}}>
-            <label className="panel-label">Difficulty</label>
-            <div className="btn-group" style={{justifyContent: "center"}}>
-              {DIFFICULTY_LEVELS.map((dl, idx) => (
-                <button
-                  className={`button gameflow-btn ${difficultyIdx === idx ? "primary selected" : ""}`}
-                  key={dl.value}
-                  onClick={() => setDifficultyIdx(idx)}
-                  type="button"
-                >{dl.label}</button>
-              ))}
+          }
+        />
+        <main className="main">
+          <div className="game-title">Single Player Snake</div>
+          <div className="gameflow-panel" style={{ minWidth: 340, maxWidth: 420, margin: "1.8em auto" }}>
+            <div className="gameflow-desc" style={{ fontSize: 15 }}>
+              <span style={{ color: "#222831" }}>Welcome,</span>{" "}
+              <span style={{ color: "#34a853", fontWeight: 700 }}>{user}</span>
+              . Try to beat your high score!
             </div>
+            <div className="scoreboard-box" style={{ margin: "8px 0 0 0" }}>
+              <span style={{ color: "#222831" }}>Personal Best:</span>{" "}
+              <span style={{ color: "#fbbc05", fontWeight: 700 }}>{maxScore}</span>
+            </div>
+            <button
+              className="button accent"
+              style={{ width: "100%", marginTop: 16, fontSize: 18 }}
+              onClick={handleStartGame}
+            >
+              Start Single-Player Game
+            </button>
+            <button
+              className="button"
+              style={{ width: "100%", marginTop: 10, fontSize: 16, border: "1.5px solid #e9ecef" }}
+              onClick={handleGoMultiplayer}
+            >
+              Go to Multiplayer
+            </button>
           </div>
-          <button
-            className="button accent gameflow-continue-btn"
-            style={{ width: "100%", marginTop: 12 }}
-            onClick={handleStartGame}
-            type="button"
-          >
-            Start Game
-          </button>
-          <button
-            className="button minimal"
-            style={{marginTop: 6, float: "right", opacity: 0.66, fontSize: "1rem"}}
-            onClick={handleLogout}
-            type="button"
-          >
-            Log out
-          </button>
-        </div>
+        </main>
       </div>
     );
   }
 
-  function GameScreen() {
+  function SinglePlayerGameScreen() {
     // State for snake, food, score, etc.
     const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
     const [food, setFood] = useState(randomCell(BOARD_SIZE));
@@ -179,7 +297,6 @@ function App() {
       setGameOver(false);
       directionRef.current = "ArrowRight";
       nextDirectionRef.current = "ArrowRight";
-      // Focus window for keys
       window.focus();
     }, []);
 
@@ -220,17 +337,17 @@ function App() {
       // eslint-disable-next-line
     }, [speedIdx, food, difficultyIdx, gameOver]);
 
-    // Game over sequence
+    // Game over handling
     useEffect(() => {
       if (gameOver) {
         setTimeout(() => {
-          handleGameOver(score);
-        }, 750);
+          handleSingleComplete(score);
+        }, 700);
       }
       // eslint-disable-next-line
     }, [gameOver]);
 
-    // Cell coloring logic (modernized blocks)
+    // Cell rendering
     function renderCell(x, y, key) {
       const snakePart = snake.find(seg => seg.x === x && seg.y === y);
       const foodHere = food.x === x && food.y === y;
@@ -245,14 +362,14 @@ function App() {
             background: color
               ? color
               : (x + y) % 2 === 0
-                  ? "#fcfcfc"
-                  : "#f3f6f9",
+                ? "#fcfcfc"
+                : "#f3f6f9",
             borderRadius: snakePart || foodHere ? "6px" : "2.9px",
             boxShadow: snakePart
               ? "0 2.5px 10px 0 #34a85340"
               : foodHere
-              ? "0 2.5px 13px 0 #fbbc0535"
-              : "none",
+                ? "0 2.5px 13px 0 #fbbc0535"
+                : "none",
             border: foodHere
               ? "1.5px solid #fffbe7"
               : "none"
@@ -262,13 +379,22 @@ function App() {
     }
 
     return (
-      <div className="gameflow-bg">
-        <div className="gameflow-panel game" style={{maxWidth: 440, width: "98%"}}>
-          <div className="gameflow-title">Snake Game</div>
-          <div className="game-session-meta">
-            <span>
-              <strong>Player:</strong> {user}
-            </span>
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          settingsPanel={<SettingsPanel
+            speedIdx={speedIdx}
+            setSpeedIdx={setSpeedIdx}
+            difficultyIdx={difficultyIdx}
+            setDifficultyIdx={setDifficultyIdx}
+            onStart={handleRestart}
+          />}
+          leaderboardPanel={<Leaderboard scores={leaderboard} currentUser={user} />}
+        />
+        <main className="main">
+          <div className="game-title" style={{ marginTop: 28, marginBottom: 8 }}>Snake Game</div>
+          <div className="game-session-meta" style={{ justifyContent: "center", marginBottom: 10 }}>
             <span>
               <strong>Difficulty:</strong> {DIFFICULTY_LEVELS[difficultyIdx].label}
             </span>
@@ -282,84 +408,181 @@ function App() {
               renderCell={renderCell}
               overlay={
                 gameOver && (
-                  <div className="game-over-overlay" style={{
-                    fontSize: "1.9rem",
-                    boxShadow: "0 3.5px 16px 0 #fbbc0511"
-                  }}>
-                    <div style={{ fontWeight: 900, color: "#e0663c", letterSpacing: ".03em" }}>Game Over</div>
-                    <div className="score-popup" style={{fontSize: "1.43rem", color: "#222831dd", marginTop: 5}}>
-                      Score: <span style={{color: "#fbbc05"}}>{score}</span>
+                  <div className="game-over-overlay">
+                    <div style={{ fontWeight: 900, color: "#e0663c", letterSpacing: ".02em" }}>Game Over</div>
+                    <div className="score-popup">
+                      Score: <span style={{ color: "#fbbc05", fontWeight: 700 }}>{score}</span>
                     </div>
                   </div>
                 )
               }
             />
-            <div className="scoreboard-box" style={{marginBottom: 6}}>
-              <span style={{color: "#666", fontWeight: 500}}>Score: </span>
-              <span style={{color: "#34a853", fontWeight: 700, fontSize: "1.19rem"}}>{score}</span>
-              <span style={{marginLeft: 13, color: "#888"}}>| Max: </span>
-              <span style={{color: "#fbbc05", fontWeight: 700, fontSize: "1.11rem"}}>{maxScore}</span>
+            <div className="scoreboard-box" style={{ marginBottom: 6, marginTop: 13 }}>
+              <span style={{ color: "#666", fontWeight: 500 }}>Score:&nbsp;</span>
+              <span style={{ color: "#34a853", fontWeight: 700, fontSize: "1.17rem" }}>{score}</span>
+              <span style={{ marginLeft: 13, color: "#888" }}>| Best: {" "}</span>
+              <span style={{ color: "#fbbc05", fontWeight: 700, fontSize: "1.11rem" }}>{maxScore}</span>
             </div>
           </div>
-          <footer className="footer" style={{ margin: "18px 0 0 0", color: "#abd1c6" }}>
-            <span style={{ color: "#888" }}>Use arrow keys. Good luck!</span>
+          <footer className="footer" style={{ margin: "15px 0 0 0" }}>
+            <span style={{ color: "#888" }}>Use arrow keys &mdash; Good luck!</span>
           </footer>
-        </div>
+        </main>
       </div>
     );
   }
 
-  function GameOverScreen() {
+  function GameoverScreen() {
     return (
-      <div className="gameflow-bg">
-        <div className="gameflow-panel gameover" style={{maxWidth: 410, width: "98%"}}>
-          <div className="gameflow-title">Game Over</div>
-          <div className="score-popup" style={{fontSize: "2.2rem", color: "#fbbc05"}}>
-            Score: {currentScore}
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          leaderboardPanel={<Leaderboard scores={leaderboard} currentUser={user} />}
+        />
+        <main className="main">
+          <div className="gameflow-panel gameover" style={{ maxWidth: 410, width: "96%", margin: "2em auto" }}>
+            <div className="gameflow-title">Game Over</div>
+            <div className="score-popup" style={{ fontSize: "2.2rem", color: "#fbbc05" }}>
+              Score: {currentScore}
+            </div>
+            <div style={{ marginTop: 10, color: "#34a853", fontWeight: 400, fontSize: "1.13rem" }}>
+              Personal Best: {maxScore}
+            </div>
+            <button
+              className="button accent"
+              style={{ width: "100%", marginTop: 18, fontSize: 20 }}
+              onClick={handleRestart}
+              autoFocus
+            >
+              Play Again
+            </button>
+            <button
+              className="button minimal"
+              style={{ marginTop: 8, float: "right", opacity: 0.7, fontSize: "1rem" }}
+              onClick={handleLogout}
+            >
+              Log out
+            </button>
+            <div style={{ margin: "2.5em 0 0.2em 0" }}>
+              <Leaderboard scores={leaderboard} currentUser={user} />
+            </div>
           </div>
-          <div style={{marginTop: 10, color: "#34a853", fontWeight: 400, fontSize: "1.15rem"}}>
-            Best: {scores.find(s => s.name === user)?.score || currentScore}
+          <footer className="gameflow-footer">
+            Can you beat your score? Try again!
+          </footer>
+        </main>
+      </div>
+    );
+  }
+
+  function MultiplayerLobbyScreen() {
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          leaderboardPanel={<Leaderboard scores={leaderboard} currentUser={user} />}
+          multiplayerPanel={
+            <MultiplayerLobby
+              user={user}
+              onJoin={handleMultiplayerJoin}
+              onCreateRoom={handleMultiplayerCreate}
+            />
+          }
+        />
+        <main className="main" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div className="game-title">Multiplayer Lobby</div>
+          <div className="gameflow-panel" style={{ minWidth: 340, maxWidth: 430 }}>
+            <div className="gameflow-desc" style={{ fontSize: 15 }}>
+              Join a room or create one to play Snake against others!
+            </div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  function MultiplayerWaitingScreen() {
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          leaderboardPanel={<Leaderboard scores={leaderboard} currentUser={user} />}
+        />
+        <main className="main" style={{ justifyContent: "center" }}>
+          <div className="gameflow-panel" style={{ minWidth: 320, maxWidth: 420 }}>
+            <div className="gameflow-title">Room: {multiRoom ? multiRoom : "..."}</div>
+            <div style={{ color: "#34a853", marginBottom: 24, marginTop: 12, fontSize: 19 }}>
+              Waiting for opponent...
+            </div>
+            <button
+              className="button accent"
+              style={{ width: "100%", marginTop: 12 }}
+              onClick={handleExitMultiplayer}
+            >
+              Leave Room
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  function MultiplayerGameScreen() {
+    return (
+      <div className="app-wrapper">
+        <Sidebar
+          user={user}
+          onLogout={handleLogout}
+          leaderboardPanel={<Leaderboard scores={leaderboard} currentUser={user} />}
+        />
+        <main className="main">
+          <div className="game-title" style={{ marginTop: 24, marginBottom: 12 }}>
+            Multiplayer Game
+          </div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Room: {multiRoom}</div>
+          <div style={{ fontWeight: 400, color: "#222831b2", marginBottom: 18 }}>
+            Competing: <span className="competitor-pill">{user}</span>
+            {multiOpponent && <span className="competitor-pill">{multiOpponent}</span>}
+          </div>
+          <MultiplayerGame
+            playerName={user}
+            opponentName={multiOpponent}
+            onEnd={handleMultiplayerComplete}
+          />
+          <footer className="footer" style={{ margin: "12px 0 0 0" }}>
+            Winner is the last snake alive!
+          </footer>
           <button
             className="button accent"
-            style={{width: "100%", marginTop: 18, fontSize: 20}}
-            onClick={handleRestart}
-            type="button"
-            autoFocus
+            style={{ marginTop: 16, width: 140, fontSize: 15 }}
+            onClick={handleExitMultiplayer}
           >
-            Play Again
+            Exit Multiplayer
           </button>
-          <button
-            className="button minimal"
-            style={{marginTop: 8, float: "right", opacity: 0.7, fontSize: "1rem"}}
-            onClick={handleLogout}
-            type="button"
-          >
-            Log out
-          </button>
-          <div style={{margin: "2.5em 0 0.2em 0"}}>
-            <Leaderboard scores={scores} currentUser={user} />
-          </div>
-        </div>
-        <footer className="gameflow-footer">
-          <span>Can you beat your score? Try again!</span>
-        </footer>
+        </main>
       </div>
     );
   }
 
-  // --- Stage selector ---
+  // Main render
   return (
     <>
       {stage === FLOW.LOGIN && <LoginScreen />}
-      {stage === FLOW.DIFFICULTY && <DifficultyScreen />}
-      {stage === FLOW.GAME && <GameScreen />}
-      {stage === FLOW.GAMEOVER && <GameOverScreen />}
+      {stage === FLOW.SETUP && <SetupScreen />}
+      {stage === FLOW.SINGLE && <SinglePlayerGameScreen />}
+      {stage === FLOW.MULTI_LOBBY && <MultiplayerLobbyScreen />}
+      {stage === FLOW.MULTI_WAIT && <MultiplayerWaitingScreen />}
+      {stage === FLOW.MULTI_GAME && <MultiplayerGameScreen />}
+      {stage === FLOW.GAMEOVER && <GameoverScreen />}
     </>
   );
 }
 
-// --- Helpers (from original SnakeGame extended for cohesion) ---
+// --- Helpers ---
+// PUBLIC_INTERFACE
 function getNextSnake(
   snake,
   dir,
@@ -379,10 +602,12 @@ function getNextSnake(
   };
   const d = DIRECTIONS[dir];
   const head = { x: snake[0].x + d.x, y: snake[0].y + d.y };
+  // Wall collision = game over
   if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size) {
     setGameOver(true);
     return snake;
   }
+  // Self collision
   if (snake.some(s => s.x === head.x && s.y === head.y)) {
     setGameOver(true);
     return snake;
@@ -397,17 +622,19 @@ function getNextSnake(
   if (!grow) nextSnake.pop();
   return nextSnake;
 }
+// PUBLIC_INTERFACE
 function isOpposite(dir, next) {
   if ((dir === "ArrowUp" && next === "ArrowDown") || (dir === "ArrowDown" && next === "ArrowUp")) return true;
   if ((dir === "ArrowLeft" && next === "ArrowRight") || (dir === "ArrowRight" && next === "ArrowLeft")) return true;
   return false;
 }
+// PUBLIC_INTERFACE
 function randomCell(size, exclude = []) {
   let tries = 0;
   while (true) {
     const cell = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
     if (!exclude.some(c => c.x === cell.x && c.y === cell.y)) return cell;
-    if (++tries > 1000) return { x: 0, y: 0 }; // fallback
+    if (++tries > 1000) return { x: 0, y: 0 };
   }
 }
 
