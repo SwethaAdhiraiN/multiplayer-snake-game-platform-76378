@@ -57,7 +57,6 @@ function App() {
 
   // ----- API endpoints/config -----
   const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000/api";
-  // e.g. "/api/leaderboard", "/api/login", "/api/rooms", "/api/start", etc.
 
   // ----- Auth/Leaderboard Effect -----
   useEffect(() => {
@@ -113,7 +112,6 @@ function App() {
 
   // Step 1: Login
   async function handleLogin(name) {
-    // Optionally a backend login/register API
     setUser(name);
     window.localStorage.setItem("snakeUser", name);
     setUserToken(""); // Placeholder for token if needed
@@ -142,23 +140,18 @@ function App() {
 
   // Step 4: MULTIPLAYER FLOW
   function handleMultiplayerJoin(roomId) {
-    // Demo: In real app, call backend/join room endpoint; here, we just "join"
     setMultiRoom(roomId);
     setStage(FLOW.MULTI_WAIT);
-    // Listen for match/ready signal from backend, then stage->FLOW.MULTI_GAME
     setTimeout(() => {
-      // In real app, this is a websocket ready event or similar
       setMultiOpponent("Opponent");
       setStage(FLOW.MULTI_GAME);
     }, 900);
   }
   function handleMultiplayerCreate(roomName) {
-    // Real app: POST to backend to create room
     setMultiRoom(roomName);
     setMultiOpponent(null);
     setStage(FLOW.MULTI_WAIT);
     setTimeout(() => {
-      // Simulate someone joining
       setMultiOpponent("Opponent");
       setStage(FLOW.MULTI_GAME);
     }, 1400);
@@ -298,7 +291,6 @@ function App() {
     const nextDirectionRef = useRef("ArrowRight");
     const moveInterval = useRef(null);
 
-    // Start new game on mount
     useEffect(() => {
       setSnake([{ x: 8, y: 8 }]);
       setFood(randomCell(BOARD_SIZE));
@@ -309,7 +301,6 @@ function App() {
       window.focus();
     }, []);
 
-    // Handle keyboard input
     useEffect(() => {
       function handleKey(e) {
         if (
@@ -323,7 +314,6 @@ function App() {
       return () => window.removeEventListener("keydown", handleKey);
     }, []);
 
-    // Game loop
     useEffect(() => {
       if (gameOver) return;
       clearInterval(moveInterval.current);
@@ -346,7 +336,6 @@ function App() {
       // eslint-disable-next-line
     }, [speedIdx, food, difficultyIdx, gameOver]);
 
-    // Game over handling
     useEffect(() => {
       if (gameOver) {
         setTimeout(() => {
@@ -356,32 +345,36 @@ function App() {
       // eslint-disable-next-line
     }, [gameOver]);
 
-    // Cell rendering
+    // Cell rendering with 3D className application
     function renderCell(x, y, key) {
-      const snakePart = snake.find(seg => seg.x === x && seg.y === y);
+      const snakeIndex = snake.findIndex(seg => seg.x === x && seg.y === y);
       const foodHere = food.x === x && food.y === y;
-      let color = "";
-      if (snakePart) color = "var(--color-primary)";
-      if (foodHere) color = "var(--color-accent)";
+      let cellClass = "cell";
+      if (snakeIndex === 0) {
+        cellClass += " snake snake-head";
+      } else if (snakeIndex > 0) {
+        cellClass += " snake";
+      } else if (foodHere) {
+        cellClass += " food";
+      }
+      // Fallback "chessboard" ground pattern if empty
+      let cellBg = undefined;
+      if (!(snakeIndex >= 0) && !foodHere) {
+        cellBg = (x + y) % 2 === 0
+          ? "#fcfcfc"
+          : "#f3f6f9";
+      }
       return (
         <div
           key={key}
-          className="cell"
+          className={cellClass}
           style={{
-            background: color
-              ? color
-              : (x + y) % 2 === 0
-                ? "#fcfcfc"
-                : "#f3f6f9",
-            borderRadius: snakePart || foodHere ? "6px" : "2.9px",
-            boxShadow: snakePart
-              ? "0 2.5px 10px 0 #34a85340"
-              : foodHere
-                ? "0 2.5px 13px 0 #fbbc0535"
-                : "none",
-            border: foodHere
-              ? "1.5px solid #fffbe7"
-              : "none"
+            background: cellClass.includes("snake")
+              ? undefined
+              : cellClass.includes("food")
+                ? undefined
+                : cellBg,
+            borderRadius: cellClass.includes("snake") || cellClass.includes("food") ? "8px" : "3.5px"
           }}
         ></div>
       );
