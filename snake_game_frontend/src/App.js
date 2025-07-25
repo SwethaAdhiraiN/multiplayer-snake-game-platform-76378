@@ -224,18 +224,16 @@ function App() {
             />
           }
           multiplayerPanel={
-            <div className="panel-section" style={{ marginBottom: 16 }}>
-              <h2 className="panel-title" style={{ textAlign: "center" }}>
-                Multiplayer
-              </h2>
+            <div className="panel-section">
+              <h2 className="panel-title" style={{ textAlign: "center" }}>Multiplayer</h2>
               <div style={{ fontSize: 14, marginBottom: 8 }}>
                 Compete live with friends!
               </div>
               <button
                 className="button primary"
-                style={{ width: "100%" }}
                 onClick={handleGoMultiplayer}
                 type="button"
+                style={{ width: "100%" }}
               >
                 Multiplayer Lobby
               </button>
@@ -244,13 +242,7 @@ function App() {
         />
         <main className="main main-responsive">
           <div className="game-title">Single Player Snake</div>
-          <div className="gameflow-panel"
-            style={{
-              minWidth: "min(340px, 94vw)",
-              maxWidth: "min(470px, 97vw)",
-              margin: "2.2em auto",
-              boxSizing: "border-box"
-            }}>
+          <div className="gameflow-panel">
             <div className="gameflow-desc" style={{ fontSize: 15 }}>
               <span style={{ color: "#222831" }}>Welcome,</span>{" "}
               <span style={{ color: "#34a853", fontWeight: 700 }}>{user}</span>
