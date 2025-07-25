@@ -36,7 +36,8 @@ const FLOW = {
 function App() {
   // ----- User & App State -----
   const [stage, setStage] = useState(FLOW.LOGIN);
-  const [user, setUser] = useState(null);
+  // Persistent user login from localStorage
+  const [user, setUser] = useState(() => window.localStorage.getItem("snakeUser") || null);
   const [userToken, setUserToken] = useState(null);
 
   // Game Configs
@@ -114,6 +115,7 @@ function App() {
   async function handleLogin(name) {
     // Optionally a backend login/register API
     setUser(name);
+    window.localStorage.setItem("snakeUser", name);
     setUserToken(""); // Placeholder for token if needed
     setStage(FLOW.SETUP);
   }
@@ -179,6 +181,7 @@ function App() {
   function handleLogout() {
     setUser(null);
     setUserToken(null);
+    window.localStorage.removeItem("snakeUser");
     setStage(FLOW.LOGIN);
     setMaxScore(0);
     setLeaderboard([]);
