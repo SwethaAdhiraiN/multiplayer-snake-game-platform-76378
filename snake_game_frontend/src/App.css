@@ -123,18 +123,25 @@ body, html {
 }
 
 /* Layout */
-.app-wrapper {
+.app-wrapper,
+.responsive-root {
   display: flex;
   min-height: 100vh;
+  min-width: 100vw;
+  height: 100vh;
   background: var(--color-bg);
   font-family: "Segoe UI", Arial, sans-serif;
+  box-sizing: border-box;
+  overflow: hidden;
+  width: 100vw;
 }
 
-.sidebar {
+.sidebar,
+.responsive-sidebar {
   background: var(--color-bg-sidebar);
   flex: 0 0 22rem;
-  max-width: 24rem;
-  min-width: 290px;
+  max-width: 25vw;
+  min-width: 275px;
   box-shadow: 2px 0 12px 0 rgba(34,40,49,0.05);
   padding: 1.5rem 1.5rem 1rem 1.5rem;
   display: flex;
@@ -142,16 +149,40 @@ body, html {
   gap: 1.2rem;
   border-right: 1.5px solid var(--color-border);
   z-index: 2;
+  height: 100vh;
+  box-sizing: border-box;
 }
 
-.main {
+.sidebar-inner-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  justify-content: flex-start;
+}
+
+@media (max-width: 1400px) {
+  .sidebar, .responsive-sidebar {
+    max-width: 32vw;
+    min-width: 200px;
+  }
+}
+
+.main,
+.main-responsive {
   flex: 1 1 0px;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: var(--color-bg);
   min-height: 100vh;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
   justify-content: flex-start;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .game-title {
@@ -399,18 +430,35 @@ body, html {
   margin-right: 5px;
   margin-top: 5px;
 }
-
 /* Responsive layout for desktop/tablet */
-@media (max-width: 980px) {
-  .app-wrapper {
-    flex-direction: column;
+@media (max-width: 1200px) {
+  .sidebar, .responsive-sidebar {
+    flex: 0 0 30vw;
+    min-width: 180px;
+    max-width: 40vw;
+    height: 100vh;
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
   }
-  .sidebar {
+}
+
+@media (max-width: 980px) {
+  .app-wrapper,
+  .responsive-root {
+    flex-direction: column;
+    min-height: 100vh;
+    min-width: 100vw;
+    height: 100vh;
+  }
+
+  .sidebar,
+  .responsive-sidebar {
     flex-direction: row;
-    align-items: stretch;
+    align-items: flex-start;
+    justify-content: flex-start;
     gap: 1.2em;
     width: 100vw;
-    min-width: unset;
+    min-width: 0;
     max-width: 100vw;
     border-right: none;
     border-bottom: 1.5px solid var(--color-border);
@@ -419,26 +467,47 @@ body, html {
     padding: 0.7rem 0.2rem 0.7rem 0.2rem;
     min-height: unset;
     height: unset;
+    box-sizing: border-box;
   }
-  .main {
+
+  .main,
+  .main-responsive {
     align-items: stretch;
+    min-width: 0;
+    width: 100vw;
+    min-height: 0;
+    max-width: 100vw;
+    height: 100%;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
 @media (max-width: 768px) {
-  .sidebar {
+  .sidebar,
+  .responsive-sidebar {
     flex-direction: column;
     box-shadow: 0 2px 10px 0 #ccc5;
     gap: 0.5em;
     padding: 0.5rem 0.3rem 0.6rem 0.3rem;
     min-width: 0;
     max-width: 100vw;
+    width: 100vw;
+    border-bottom: none;
+    border-right: none;
+    border-radius: 0;
     overflow-x: unset;
+    height: auto;
   }
-  .main {
+
+  .main,
+  .main-responsive {
     padding: 0;
     min-width: 0;
+    width: 100vw;
+    min-height: 0;
   }
+
   .game-board {
     min-width: 165px;
     width: 90vw;
@@ -446,11 +515,41 @@ body, html {
   }
 }
 
+@media (max-width: 650px) {
+  .gameflow-panel,
+  .panel-section {
+    padding: 8vw 2vw 7vw 2vw !important;
+    margin: 2vw 0 2vw 0 !important;
+    min-width: 0 !important;
+    width: 99vw !important;
+    box-sizing: border-box !important;
+  }
+}
+
 @media (max-width: 480px) {
-  .sidebar, .panel-section {
+  .sidebar,
+  .responsive-sidebar,
+  .panel-section {
     border-radius: 0;
     box-shadow: none;
     padding: 0.8em 0.2em 0.7em 0.2em;
+    min-width: 0;
+    max-width: 100vw;
+    width: 100vw;
+    height: auto;
+    margin: 0;
   }
-  .main { min-width: 0; }
+  .main,
+  .main-responsive {
+    min-width: 0;
+    width: 100vw;
+  }
 }
+
+/* Make footer always stick to bottom on sidebar */
+.sidebar-footer {
+  margin-top: auto !important;
+  align-self: flex-end;
+  width: 100%;
+}
+

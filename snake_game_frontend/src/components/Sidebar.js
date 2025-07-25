@@ -14,9 +14,10 @@ function Sidebar({
   multiplayerPanel,
   style = {}
 }) {
+  // Ensure sidebar remains flexible & stretches nicely in both column/row variants for all screen sizes
   return (
-    <aside className="sidebar" style={style}>
-      <div>
+    <aside className="sidebar responsive-sidebar" style={style}>
+      <div className="sidebar-inner-content">
         {user && (
           <div className="panel-section" style={{ marginBottom: 10, marginTop: 6 }}>
             <div className="panel-label" style={{ fontSize: 15 }}>
@@ -32,7 +33,7 @@ function Sidebar({
         {multiplayerPanel}
         {leaderboardPanel}
       </div>
-      <footer className="footer" style={{ textAlign: "left", marginTop: 22 }}>
+      <footer className="footer sidebar-footer" style={{ textAlign: "left", marginTop: 22 }}>
         <span style={{ color: "var(--color-secondary)", opacity: 0.7 }}>
           Multiplayer Snake &copy; 2024
         </span>

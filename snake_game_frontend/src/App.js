@@ -211,7 +211,7 @@ function App() {
 
   function SetupScreen() {
     return (
-      <div className="app-wrapper">
+      <div className="app-wrapper responsive-root">
         <Sidebar
           user={user}
           onLogout={handleLogout}
@@ -249,9 +249,15 @@ function App() {
             </div>
           }
         />
-        <main className="main">
+        <main className="main main-responsive">
           <div className="game-title">Single Player Snake</div>
-          <div className="gameflow-panel" style={{ minWidth: 340, maxWidth: 420, margin: "1.8em auto" }}>
+          <div className="gameflow-panel"
+            style={{
+              minWidth: "min(340px, 94vw)",
+              maxWidth: "min(470px, 97vw)",
+              margin: "2.2em auto",
+              boxSizing: "border-box"
+            }}>
             <div className="gameflow-desc" style={{ fontSize: 15 }}>
               <span style={{ color: "#222831" }}>Welcome,</span>{" "}
               <span style={{ color: "#34a853", fontWeight: 700 }}>{user}</span>
