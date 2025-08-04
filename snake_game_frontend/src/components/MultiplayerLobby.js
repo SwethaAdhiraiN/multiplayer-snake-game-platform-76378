@@ -1,44 +1,60 @@
 import React, { useState, useEffect } from "react";
 
-// Dummy/mock API for multiplayer lobby (replace with backend integration)
-const demoRooms = [
-  {
-    roomId: "a1b2",
-    players: [{ name: "Alex", avatar: "🟢" }, { name: "QuickJoe", avatar: "🟡" }],
-    playing: false
-  },
-  {
-    roomId: "p4c6",
-    players: [{ name: "Cleo", avatar: "🐍" }],
-    playing: false
-  }
-];
+/*
+ * MultiplayerLobby - fetches and displays multiplayer rooms in real time via backend API.
+ */
 
 /**
  * PUBLIC_INTERFACE
- * MultiplayerLobby - Select or join multiplayer game rooms, show available rooms/players.
+ * MultiplayerLobby - Select or join multiplayer game rooms, show available rooms/players via backend API.
  * Props:
  *   user: current username
  *   onJoin: func(roomId)
+ *   onCreateRoom: func(roomName)
  */
 function MultiplayerLobby({ user, onJoin, onCreateRoom }) {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newRoomName, setNewRoomName] = useState("");
+  const [error, setError] = useState("");
+  const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000/api";
 
+  // Fetch rooms from backend on mount and every 3 seconds
   useEffect(() => {
-    // Placeholder for fetching active rooms from backend
-    setTimeout(() => {
-      setRooms(demoRooms);
-      setLoading(false);
-    }, 150);
+    let isMounted = true;
+    let intervalId = null;
+    async function fetchRooms() {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch(`${API_BASE}/multiplayer/rooms`);
+        if (!res.ok) throw new Error("Failed to load rooms");
+        const data = await res.json();
+        if (isMounted) {
+          setRooms(data);
+          setLoading(false);
+        }
+      } catch (e) {
+        setError("Could not fetch rooms.");
+        setRooms([]);
+        setLoading(false);
+      }
+    }
+    fetchRooms();
+    intervalId = setInterval(fetchRooms, 3200);
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+    // eslint-disable-next-line
   }, []);
 
   return (
     <div className="panel-section" style={{ marginBottom: 12 }}>
       <h2 className="panel-title" style={{ fontSize: "1.1rem" }}>Multiplayer Lobby</h2>
       {loading && <div style={{ color: "#888", fontSize: 13 }}>Loading rooms...</div>}
-      {!loading && (
+      {error && <div style={{ color: "#c00", fontSize: 13 }}>{error}</div>}
+      {!loading && !error && (
         <>
           <ul className="lobby-list">
             {rooms.length === 0 && (
@@ -46,7 +62,12 @@ function MultiplayerLobby({ user, onJoin, onCreateRoom }) {
             )}
             {rooms.map(room => (
               <li key={room.roomId}>
-                <span className="lobby-avatar">{room.players[0]?.avatar || "🕹️"}</span>
+                <span className="lobby-avatar" title={room.players[0] || "player"} role="img">
+                  {/* Avatar is just emoji circle or user initial */}
+                  {room.players[0]?.[0] ?
+                    (room.players[0][0].toUpperCase() === user[0].toUpperCase() ? "🟢" : "🟡")
+                    : "🕹️"}
+                </span>
                 <span className="lobby-name">{room.roomId}</span>
                 <span style={{ marginLeft: 10, fontSize: 13, color: "#666" }}>
                   {room.players.length} player{room.players.length > 1 ? "s" : ""}
@@ -56,7 +77,8 @@ function MultiplayerLobby({ user, onJoin, onCreateRoom }) {
                   style={{ marginLeft: 10, fontSize: 14, padding: "3px 12px" }}
                   onClick={() => onJoin(room.roomId)}
                   type="button"
-                  disabled={room.playing}
+                  disabled={room.playing || room.players.length >= 2 || room.players.includes(user)}
+                  title={room.playing ? "Game started" : room.players.length >= 2 ? "Full" : ""}
                 >
                   Join
                 </button>

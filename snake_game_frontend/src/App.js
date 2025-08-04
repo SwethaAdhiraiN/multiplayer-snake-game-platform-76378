@@ -139,27 +139,97 @@ function App() {
   }
 
   // Step 4: MULTIPLAYER FLOW
-  function handleMultiplayerJoin(roomId) {
-    setMultiRoom(roomId);
-    setStage(FLOW.MULTI_WAIT);
-    setTimeout(() => {
-      setMultiOpponent("Opponent");
-      setStage(FLOW.MULTI_GAME);
-    }, 900);
+
+  // Join a multiplayer room by ID (API)
+  async function handleMultiplayerJoin(roomId) {
+    try {
+      // POST /api/multiplayer/rooms/{roomId}/join { user }
+      const res = await fetch(`${API_BASE}/multiplayer/rooms/${encodeURIComponent(roomId)}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user })
+      });
+      if (!res.ok) throw new Error("Failed to join room");
+      setMultiRoom(roomId);
+
+      // Poll for opponent to join (simulate waiting)
+      let opponentName = null;
+      let retries = 0;
+      setStage(FLOW.MULTI_WAIT);
+      while (retries < 18 && !opponentName) {
+        // 900ms poll for opponent
+        await new Promise(res => setTimeout(res, 900));
+        const stateRes = await fetch(`${API_BASE}/multiplayer/rooms/${encodeURIComponent(roomId)}/state`);
+        if (!stateRes.ok) break;
+        const state = await stateRes.json();
+        const players = state.players || [];
+        opponentName = players.find(p => p !== user);
+        if (opponentName) {
+          setMultiOpponent(opponentName);
+          setStage(FLOW.MULTI_GAME);
+        }
+        retries++;
+      }
+      if (!opponentName) setMultiOpponent(null);
+    } catch {
+      setMultiRoom(null);
+      setStage(FLOW.MULTI_LOBBY);
+    }
   }
-  function handleMultiplayerCreate(roomName) {
-    setMultiRoom(roomName);
-    setMultiOpponent(null);
-    setStage(FLOW.MULTI_WAIT);
-    setTimeout(() => {
-      setMultiOpponent("Opponent");
-      setStage(FLOW.MULTI_GAME);
-    }, 1400);
+
+  // Create a multiplayer room (API)
+  async function handleMultiplayerCreate(roomName) {
+    try {
+      // POST /api/multiplayer/rooms { creator, name }
+      const res = await fetch(`${API_BASE}/multiplayer/rooms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creator: user, name: roomName })
+      });
+      if (!res.ok) throw new Error("Failed to create room");
+      const data = await res.json();
+      const createdRoomId = data.roomId || roomName;
+      setMultiRoom(createdRoomId);
+      setMultiOpponent(null);
+
+      // Wait for opponent to join (poll room state)
+      setStage(FLOW.MULTI_WAIT);
+      let opponentName = null;
+      let retries = 0;
+      while (retries < 28 && !opponentName) {
+        // 1000ms poll
+        await new Promise(res => setTimeout(res, 1000));
+        const stateRes = await fetch(`${API_BASE}/multiplayer/rooms/${encodeURIComponent(createdRoomId)}/state`);
+        if (!stateRes.ok) break;
+        const state = await stateRes.json();
+        const players = state.players || [];
+        opponentName = players.find(p => p !== user);
+        if (opponentName) {
+          setMultiOpponent(opponentName);
+          setStage(FLOW.MULTI_GAME);
+        }
+        retries++;
+      }
+      if (!opponentName) setMultiOpponent(null);
+    } catch {
+      setMultiRoom(null);
+      setStage(FLOW.MULTI_LOBBY);
+    }
   }
   function handleMultiplayerComplete(result) {
     setStage(FLOW.GAMEOVER);
   }
-  function handleExitMultiplayer() {
+  // Leave: Remove user from room (destroy backend state)
+  async function handleExitMultiplayer() {
+    if (multiRoom) {
+      try {
+        await fetch(`${API_BASE}/multiplayer/rooms/${encodeURIComponent(multiRoom)}/leave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user })
+        });
+      } catch {}
+    }
     setMultiRoom(null);
     setMultiOpponent(null);
     setInMultiplayer(false);

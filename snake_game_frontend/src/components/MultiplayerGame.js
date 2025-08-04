@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import GameBoard from "./GameBoard";
 
-// Utility: generate a random cell
+// Returns random cell on board not in exclude
 function randomCell(size, exclude = []) {
   let tries = 0;
   while (tries++ < 1000) {
     const cell = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
     if (!exclude.some(c => c.x === cell.x && c.y === cell.y)) return cell;
   }
-  return { x: 0, y: 0 }; // fallback
+  return { x: 0, y: 0 };
 }
 
 const COLORS = {
@@ -18,21 +18,19 @@ const COLORS = {
   bg: "#fff",
   grid: "#e9ecef"
 };
-
 const BOARD_SIZE = 20;
 
 /**
  * PUBLIC_INTERFACE
- * MultiplayerGame - Handles (basic/local demo) multiplayer snake for 2 players
- * In a real app, would use backend API and websocket/state sync.
+ * MultiplayerGame - Synchronizes multiplayer game state via backend APIs (polling model).
  * @param {Object} props
  *   playerName - local player name
  *   opponentName - string or unknown
- *   onEnd - function for when a player loses
+ *   onEnd - function when game ends
  */
 function MultiplayerGame({ playerName, opponentName, onEnd }) {
-  // We'll just demo with two snakes, each controlled separately
-  // Local: Arrow keys; Opponent: WASD (simulate AI/opponent snake in demo)
+  const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000/api";
+  // --- Core game state
   const [ourSnake, setOurSnake] = useState([{ x: 5, y: 10 }]);
   const [opponentSnake, setOpponentSnake] = useState([{ x: 14, y: 10 }]);
   const [food, setFood] = useState(randomCell(BOARD_SIZE));
@@ -43,17 +41,12 @@ function MultiplayerGame({ playerName, opponentName, onEnd }) {
   const ourDirRef = useRef("ArrowRight");
   const nextOurDir = useRef("ArrowRight");
 
-  // For demo: "AI" moves at random every so often as opponent
-  useEffect(() => {
-    if (!running) return;
-    const aiInt = setInterval(() => {
-      setOpponentSnake(prev => getNextSnake(prev, randomAIDir(), food, BOARD_SIZE, () => {}, () => {}, () => {}));
-    }, 180);
-    return () => clearInterval(aiInt);
-    // eslint-disable-next-line
-  }, [running, food]);
+  // Room id is looked up via window state
+  const roomId = window.location.hash.startsWith("#room-")
+    ? window.location.hash.replace("#room-", "")
+    : null;
 
-  // Control our own snake by Arrow keys
+  // Control our own snake by Arrow keys (suppress opposite)
   useEffect(() => {
     if (!running) return;
     const handleKey = e => {
@@ -69,44 +62,193 @@ function MultiplayerGame({ playerName, opponentName, onEnd }) {
     // eslint-disable-next-line
   }, [running]);
 
-  // Game loop for our snake
+  // Take our step, then update state (as owner), else only poll
   useEffect(() => {
-    if (!running) return;
-    const tick = setInterval(() => {
-      ourDirRef.current = nextOurDir.current;
-      setOurSnake(prev =>
-        getNextSnake(
-          prev,
-          ourDirRef.current,
-          food,
-          BOARD_SIZE,
-          cell => setFood(cell),
-          () => {},
-          v => {
-            setGameOver(v);
-            setRunning(false);
-            if (onEnd && v) onEnd("you");
-          }
-        )
-      );
-    }, 100);
-    return () => clearInterval(tick);
-    // eslint-disable-next-line
-  }, [running, food, onEnd]);
+    if (!playerName) return;
+    let interval = null;
+    let isMounted = true;
 
-  // End game if collided with opponent
-  useEffect(() => {
-    if (
-      opponentSnake.length &&
-      ourSnake.length &&
-      opponentSnake.some(seg => seg.x === ourSnake[0].x && seg.y === ourSnake[0].y)
-    ) {
-      setGameOver(true);
-      setRunning(false);
-      if (onEnd) onEnd("opponent");
+    // Represents shared "session state" in backend:
+    // { snakes: { "user1": [...], "user2": [...] }, food: {...}, over: bool, loser: playerName|null }
+    async function fetchAndSyncState(role) {
+      try {
+        // --- Get state from backend
+        const res = await fetch(
+          `${API_BASE}/multiplayer/rooms/${encodeURIComponent(window.__snakeMultiRoomId || roomId)}/state`
+        );
+        if (!res.ok) throw new Error("No backend state");
+        const backend = await res.json();
+        let state = backend.state || {};
+        // Initial assignment if missing
+        if (!state.snakes) state.snakes = {};
+        if (!state.snakes[playerName]) state.snakes[playerName] = ourSnake;
+
+        // Decide: if we are the "host" (room creator), we update food, over, etc.
+        const players = (backend.players || []).sort();
+        const host = players[0] || playerName;
+        let isHost = playerName === host;
+        // Advance our snake by one and update backend with new state if it's our turn
+        if (isHost && !state.over) {
+          // Move both snakes forward (if present)
+          let userDirs = {};
+          if (state.dirs) userDirs = state.dirs;
+          userDirs[playerName] = ourDirRef.current;
+          // Update snakes for both players (simulate lockstep)
+          const newSnakes = { ...state.snakes };
+          // Move my snake
+          newSnakes[playerName] = getNextSnake(
+            state.snakes[playerName] || ourSnake,
+            ourDirRef.current,
+            state.food || food,
+            BOARD_SIZE,
+            cell => {}, // food
+            () => {},
+            v => {}
+          );
+          // Opponent snake: use stored direction if available
+          let theirName = null;
+          for (let n of Object.keys(newSnakes)) {
+            if (n !== playerName) theirName = n;
+          }
+          if (theirName) {
+            let theirsDir = userDirs[theirName];
+            if (!theirsDir) theirsDir = "ArrowRight";
+            newSnakes[theirName] = getNextSnake(
+              state.snakes[theirName] || [{ x: 15, y: 10 }],
+              theirsDir,
+              state.food || food,
+              BOARD_SIZE,
+              cell => {},
+              () => {},
+              v => {}
+            );
+          }
+
+          // Food collection logic: only respawn if eaten
+          let newFood = state.food || food;
+          let someoneAte = false;
+          for (let name in newSnakes) {
+            if (
+              newSnakes[name][0].x === (state.food || food).x &&
+              newSnakes[name][0].y === (state.food || food).y
+            ) {
+              someoneAte = true;
+            }
+          }
+          if (someoneAte) {
+            // Don't spawn food in any snake cell
+            let union = [];
+            for (let sn in newSnakes) union = union.concat(newSnakes[sn]);
+            newFood = randomCell(BOARD_SIZE, union);
+          }
+
+          // Detect collisions for game over
+          let over = false;
+          let loser = null;
+          Object.keys(newSnakes).forEach(name => {
+            let allCells = [];
+            Object.keys(newSnakes).forEach(other =>
+              allCells.push(...(other !== name ? newSnakes[other] : []))
+            );
+            // Hit wall
+            if (
+              newSnakes[name][0].x < 0 ||
+              newSnakes[name][0].x >= BOARD_SIZE ||
+              newSnakes[name][0].y < 0 ||
+              newSnakes[name][0].y >= BOARD_SIZE
+            ) {
+              over = true;
+              loser = name;
+            }
+            // Hit self or other
+            let body = newSnakes[name].slice(1);
+            if (
+              body.some(seg => seg.x === newSnakes[name][0].x && seg.y === newSnakes[name][0].y) ||
+              allCells.some(seg => seg.x === newSnakes[name][0].x && seg.y === newSnakes[name][0].y)
+            ) {
+              over = true;
+              loser = name;
+            }
+          });
+
+          // Save new state to backend
+          let newState = {
+            snakes: newSnakes,
+            food: newFood,
+            dirs: userDirs,
+            over,
+            loser
+          };
+          await fetch(
+            `${API_BASE}/multiplayer/rooms/${encodeURIComponent(window.__snakeMultiRoomId || roomId)}/state`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newState)
+            }
+          );
+
+          // Update UI state
+          if (isMounted) {
+            setOurSnake(newSnakes[playerName]);
+            setFood(newFood);
+            setOpponentSnake(
+              theirName ? newSnakes[theirName] : [{ x: 15, y: 10 }]
+            );
+            setGameOver(over || false);
+            setRunning(!over);
+            if (over && onEnd) onEnd(loser === playerName ? "you" : "opponent");
+          }
+        } else {
+          // Guest: only update local state from backend
+          if (isMounted && state.snakes && state.snakes[playerName]) {
+            setOurSnake(state.snakes[playerName]);
+            setFood(state.food || food);
+            setOpponentSnake(
+              Object.keys(state.snakes).find(n => n !== playerName)
+                ? state.snakes[Object.keys(state.snakes).find(n => n !== playerName)]
+                : [{ x: 15, y: 10 }]
+            );
+            setGameOver(state.over || false);
+            setRunning(!state.over);
+            if (state.over && onEnd) onEnd(state.loser === playerName ? "you" : "opponent");
+          }
+        }
+      } catch {
+        // Backend unavailable: end game
+        setRunning(false);
+      }
     }
+
+    // Host/guest interval
+    interval = setInterval(() => fetchAndSyncState(), 330);
+
+    return () => {
+      isMounted = false;
+      if (interval) clearInterval(interval);
+    };
     // eslint-disable-next-line
-  }, [ourSnake, opponentSnake]);
+  }, [playerName, opponentName, roomId, food, running],);
+
+  // Dir update: send my most recent direction on key press
+  useEffect(() => {
+    if (!playerName || !running) return;
+    let interval = setInterval(async () => {
+      let id = window.__snakeMultiRoomId || roomId;
+      try {
+        await fetch(`${API_BASE}/multiplayer/rooms/${encodeURIComponent(id)}/state`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            // Shallow: push only my dir
+            dirs: { [playerName]: ourDirRef.current }
+          })
+        });
+      } catch {}
+    }, 750);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line
+  }, [playerName, running, roomId]);
 
   // Cell rendering
   function renderCell(x, y, key) {
@@ -122,8 +264,8 @@ function MultiplayerGame({ playerName, opponentName, onEnd }) {
           background: color
             ? color
             : (x + y) % 2 === 0
-            ? COLORS.bg
-            : COLORS.grid
+              ? COLORS.bg
+              : COLORS.grid
         }}
       ></div>
     );
@@ -173,11 +315,6 @@ function isOpposite(dir, next) {
   if ((dir === "ArrowUp" && next === "ArrowDown") || (dir === "ArrowDown" && next === "ArrowUp")) return true;
   if ((dir === "ArrowLeft" && next === "ArrowRight") || (dir === "ArrowRight" && next === "ArrowLeft")) return true;
   return false;
-}
-function randomAIDir() {
-  // Just random for demo, not real AI
-  const dirs = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-  return dirs[Math.floor(Math.random() * dirs.length)];
 }
 
 export default MultiplayerGame;
